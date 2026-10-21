@@ -187,9 +187,11 @@ if ( $has_airport_pickup && ! $has_city_pickup ) {
                         </div>
                         
                         <div id="etb-chk-airport-grid" class="etb-chk-grid-2">
-                            <div class="etb-chk-field" id="etb-chk-flight-field">
-                                <label for="etb-flight-number" id="etb-chk-flight-label"> Flight Number</label>
-                                <input type="text" name="etb_flight_number" id="etb-flight-number" placeholder="e.g. BA 342, DL 401..." autocomplete="off">
+                            <div id="etb-chk-flight-field">
+                                <div class="etb-floating-field">
+                                    <label for="etb-flight-number" id="etb-chk-flight-label">Flight Number</label>
+                                    <input type="text" name="etb_flight_number" id="etb-flight-number" placeholder="e.g. BA 342, DL 401..." autocomplete="off">
+                                </div>
                                 <small class="etb-chk-hint" id="etb-chk-flight-hint">1 hour free waiting time included after landing.</small>
                             </div>
                         </div>
@@ -224,30 +226,37 @@ if ( $has_airport_pickup && ! $has_city_pickup ) {
                             </label>
                         </div>
 
-                        <!-- Coordonnées passager principal -->
+                        <!-- Coordonnées passager principal (Style Flottant Premium) -->
                         <div class="etb-chk-grid-2" style="margin-top: 18px;">
-                            <div class="etb-chk-field">
-                                <label for="etb-passenger-first-name">First Name *</label>
-                                <input type="text" name="etb_first_name" id="etb-passenger-first-name" placeholder="First Name" required>
+                            <div>
+                                <div class="etb-floating-field">
+                                    <label for="etb-passenger-first-name">First Name *</label>
+                                    <input type="text" name="etb_first_name" id="etb-passenger-first-name" placeholder="e.g. Bruce" required>
+                                </div>
                             </div>
-                            <div class="etb-chk-field">
-                                <label for="etb-passenger-last-name">Last Name *</label>
-                                <input type="text" name="etb_last_name" id="etb-passenger-last-name" placeholder="Last Name" required>
+                            <div>
+                                <div class="etb-floating-field">
+                                    <label for="etb-passenger-last-name">Last Name *</label>
+                                    <input type="text" name="etb_last_name" id="etb-passenger-last-name" placeholder="e.g. Wayne" required>
+                                </div>
                             </div>
                         </div>
 
-                        <div class="etb-chk-grid-2">
-                            <div class="etb-chk-field">
-                                <label for="etb-passenger-email">Email Address *</label>
-                                <input type="email" name="etb_email" id="etb-passenger-email" placeholder="email@domain.com" required>
-                                <small class="etb-chk-hint">Ride confirmation and official invoice will be sent here.</small>
+                        <div class="etb-chk-grid-2" style="margin-top: 4px;">
+                            <div>
+                                <div class="etb-floating-field">
+                                    <label for="etb-passenger-email">Email Address *</label>
+                                    <input type="email" name="etb_email" id="etb-passenger-email" placeholder="email@domain.com" required>
+                                </div>
+                                <small class="etb-chk-hint">Ride confirmation and invoice sent here.</small>
                             </div>
-                            <div class="etb-chk-field">
-                                <label for="etb-passenger-phone">Mobile Phone *</label>
-                                <input type="tel" name="etb_phone" id="etb-passenger-phone" class="etb-phone-field" placeholder="6 12 34 56 78" required>
-                                <small class="etb-chk-hint">Chauffeur will send SMS or call when arriving on location.</small>
+                            <div>
+                                <div class="etb-floating-field">
+                                    <label for="etb-passenger-phone">Mobile Phone *</label>
+                                    <input type="tel" name="etb_phone" id="etb-passenger-phone" class="etb-phone-field" placeholder="6 12 34 56 78" required>
+                                </div>
+                                <small class="etb-chk-hint">Chauffeur SMS or call before arrival.</small>
                             </div>
-                            
                         </div>
 
                         <!-- Champ Pancarte Chauffeur (Greeting Sign) calé à 50% sous la colonne Email -->

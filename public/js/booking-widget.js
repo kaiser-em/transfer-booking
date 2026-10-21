@@ -1423,12 +1423,14 @@
 
 
         // ── GÉNÉRATION DYNAMIQUE DES LIENS WHATSAPP ET EMAIL ──
+                // ── GÉNÉRATION DYNAMIQUE DES LIENS WHATSAPP ET EMAIL ──
         const updateInquiryLinks = () => {
             const waPhone   = (typeof etbAjax !== 'undefined' && etbAjax.company_whatsapp) ? etbAjax.company_whatsapp : '';
             const adminMail = (typeof etbAjax !== 'undefined' && etbAjax.admin_email) ? etbAjax.admin_email : '';
             const emailInquiryBtn = quickRoot.querySelector('#etb-quick-email-btn');
 
             let message = '';
+            let emailMessage = ''; // <-- AJOUT INDISPENSABLE ICI
             const waveEmoji = String.fromCodePoint(0x1F44B);
 
             if (selectedCar) {
@@ -1442,10 +1444,15 @@
 
                 // --- DÉTECTION DE L'URGENCE POUR LE MESSAGE ---
                 const isUrgent     = checkIsUrgent();
-                const urgentPrefix = isUrgent ? '🔴 Urgent Booking 🔴\n\n' : '';
                 const paxText      = selectedCar.maxPax ? ` ${selectedCar.maxPax} pax` : '';
 
-                message = `${urgentPrefix}Hello team ${waveEmoji},\n\n`
+                // 1. Préfixe WhatsApp (Gras natif avec astérisques)
+                const urgentPrefixWa = isUrgent ? '*🔴 Urgent Booking 🔴*\n\n' : '';
+                // 2. Préfixe Email (Caractères Unicode Gras car mailto ne gère pas le HTML)
+                const urgentPrefixMail = isUrgent ? '🔴 𝗨𝗥𝗚𝗘𝗡𝗧 𝗕𝗢𝗢𝗞𝗜𝗡𝗚 🔴\n\n' : '';
+
+                // On prépare le corps du message commun
+                const baseMessage = `Hello team ${waveEmoji},\n\n`
                     + `I would like to inquire about booking a transfer:\n\n`
                     + `*${selectedCar.name}${paxText}*\n`
                     + `• Pickup: ${pVal}\n`
@@ -1453,28 +1460,38 @@
                     + `• Date & Time: ${rawDate} at ${tmVal}\n`
                     + `• Rate: ${rateText}\n\n`
                     + `Thank you!`;
+
+                // On génère les deux versions
+                message      = urgentPrefixWa + baseMessage;
+                emailMessage = urgentPrefixMail + baseMessage;
+                
             } else if (cartTrips.length > 0) {
                 // Message groupé pour l'ensemble du panier
-                message = `Hello team ${waveEmoji},\n\n`
+                const cartBaseMessage = `Hello team ${waveEmoji},\n\n`
                     + `I would like to inquire about my scheduled itinerary (${cartTrips.length} transfers):\n\n`;
 
+                let cartBody = '';
                 let totalSum = 0;
                 let hasQuote = false;
 
                 cartTrips.forEach((t, i) => {
                     const rText = t.isQuote ? 'Quote' : `${t.price} ${currency}`;
                     if (t.isQuote) hasQuote = true; else totalSum += parseFloat(t.price) || 0;
-                    message += `*Transfer #${i + 1} (${t.vehicle_name})*\n`
+                    cartBody += `*Transfer #${i + 1} (${t.vehicle_name})*\n`
                         + `  • Route: ${t.pickup} ➔ ${t.dropoff}\n`
                         + `  • Date: ${t.date} at ${t.time}\n`
                         + `  • Rate: ${rText}\n\n`;
                 });
 
                 const finalSumText = hasQuote ? 'Custom Quote' : `${totalSum.toFixed(0)} ${currency}`;
-                message += `*Estimated Total: ${finalSumText}*\n\nThank you!`;
+                cartBody += `*Estimated Total: ${finalSumText}*\n\nThank you!`;
+
+                message      = cartBaseMessage + cartBody;
+                emailMessage = cartBaseMessage + cartBody; // Pas d'urgence pour le panier
             }
 
-            if (!message) return;
+            // Si aucun message n'a pu être généré, on s'arrête
+            if (!message || !emailMessage) return;
 
             // 1. Mise à jour du lien WhatsApp
             if (whatsappBtn) {
@@ -1486,14 +1503,11 @@
 
             // 2. Mise à jour du lien Email (mailto)
             if (emailInquiryBtn) {
-                // Détection de l'urgence pour l'objet du mail
                 const isUrgentSubject = checkIsUrgent();
-                
-                // Construction de l'objet dynamique
                 const subjectPrefix = isUrgentSubject ? '🚨 URGENT (< 24H) - VIP Transfer Inquiry' : '[Inquiry] VIP Transfer Booking';
                 
                 const emailSubject = encodeURIComponent(subjectPrefix);
-                const emailBody    = encodeURIComponent(message.replace(/\*/g, ''));
+                const emailBody    = encodeURIComponent(emailMessage.replace(/\*/g, ''));
                 emailInquiryBtn.href = `mailto:${adminMail}?subject=${emailSubject}&body=${emailBody}`;
             }
         };
@@ -2399,7 +2413,6 @@
                         .catch(function () { callback("fr"); });
                 }
             });
-
             // Formateur universel certifié par Google libphonenumber (couvre les 245 pays)
             const formatPhoneDigitsByCountry = function (digits, iso2) {
                 if (!digits) return '';

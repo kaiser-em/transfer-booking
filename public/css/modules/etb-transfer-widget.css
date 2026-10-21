@@ -1005,12 +1005,13 @@
     border-color: var(--etb-border-main, #232a3b) !important;
     transform: translateY(0) scale(1) !important;
     pointer-events: auto !important;
-    max-height: 350px !important;
+    max-height: 420px !important;
     justify-content: space-between !important;
     align-items: center !important;
     gap: 14px !important;
     box-sizing: border-box !important;
     overflow: visible !important; /* Évite toute coupure du bouton sur le bord droit */
+    flex-wrap: nowrap !important; /* ✅ AJOUTE CETTE LIGNE ICI */
     clear: both !important;
 }
 
@@ -1043,14 +1044,7 @@
     font-weight: 800 !important;
 }
 
-/* Boutons d'action */
-.etb-quick-actions-row {
-    display: flex !important;
-    align-items: center !important;
-    justify-content: end !important;
-    gap: 12px !important;
-    flex-wrap: wrap !important;
-}
+
 
 .etb-quick-book-trip-btn {
     background: #fbac18 !important;
@@ -1063,6 +1057,7 @@
     cursor: pointer !important;
     display: inline-flex !important;
     align-items: center !important;
+    justify-content: center;
     gap: 7px !important;
     transition: all 0.25s ease !important;
     white-space: nowrap !important;
@@ -1221,8 +1216,10 @@
     align-items: center !important;
     justify-content: flex-end !important;
     gap: 10px !important;
-    flex-wrap: nowrap !important;
-    flex-shrink: 0 !important;
+    flex-wrap: wrap !important;
+    flex-shrink: 1 !important;
+    width: 100%;
+     flex-basis: content;
 }
 
 /* Boîte de suggestions (Priorité absolue et capture totale des événements souris) */
@@ -1684,92 +1681,31 @@
 }
 
 
+@media (max-width: 992px) { 
 
-
-/* ── RESPONSIVE WIDGET ACCUEIL ── */
-/* Adaptation Responsive Mobile */
-@media (max-width: 1200px) { 
-    
-    .etb-quick-confirm-bar {
-        flex-direction: column !important;
-        gap: 14px !important;
-        text-align: center !important;
+ 
+    .etb-quick-actions-row {
+        flex-direction: column;
+        justify-content: center !important;
+        align-items: stretch !important;
+        width: 100%;
+        flex-basis: content;
     }
 
-     /* Barre de confirmation sur tablette et mobile */
-    .etb-quick-confirm-bar {
-        flex-direction: column !important;
-        gap: 16px !important;
-        align-items: stretch !important;
-        padding: 20px 22px !important;
+    .etb-quick-contact-duo{
+        justify-content: center;
     }
 
     .etb-quick-confirm-bar.is-visible {
-        max-height: 600px !important; /* Déploiement total sans masque de découpe */
-    }
-
-    .etb-quick-summary-info {
-        flex-direction: column !important;
-        align-items: flex-start !important;
-        gap: 8px !important;
-        width: 100% !important;
-    }
-
-    .etb-quick-summary-info span {
-        display: block !important;
-        width: 100% !important;
-        font-size: 13px !important;
-    }
-
-    .etb-quick-summary-info #etb-quick-selected-name {
-        display: block !important;
-        margin-top: 3px !important;
-        font-size: 16px !important;
-        font-weight: 800 !important;
-        color: var(--etb-text-primary) !important;
-        white-space: normal !important;
-    }
-
-    /* Actions sur Mobile : hiérarchie et respirations parfaites */
-    .etb-quick-actions-row {
-        display: flex !important;
         flex-direction: column !important;
         align-items: stretch !important;
-        width: 100% !important;
-        gap: 8px !important;
+        flex-wrap: wrap !important;
     }
 
-    /* Le duo Email & WhatsApp : 50% / 50% sur la 1ère rangée */
-    .etb-quick-actions-row .etb-quick-contact-duo {
-        display: flex !important;
-        width: 100% !important;
-        gap: 8px !important;
-    }
-
-    .etb-quick-actions-row .etb-quick-contact-duo a {
-        flex: 1 1 50% !important;
-        min-width: 0 !important;
-        justify-content: center !important;
-        box-sizing: border-box !important;
-        padding: 10px 12px !important;
-    }
-
-   /* Boutons de réservation en pleine largeur cadree sans debordement */
-    .etb-quick-actions-row .etb-quick-add-trip-btn,
-    .etb-quick-actions-row .etb-quick-book-trip-btn,
-    .etb-quick-actions-row #etb-quick-book-now-btn {
-        width: 100% !important;
-        max-width: 100% !important;
-        flex: 1 1 100% !important;
-        justify-content: center !important;
-        box-sizing: border-box !important;
-        padding: 12px 14px !important;
-        font-size: 13px !important;
-        white-space: nowrap !important;
-        overflow: hidden !important;
-        text-overflow: ellipsis !important;
-    }
 }
+
+
+
 
 
 @media (max-width: 400px) {
@@ -1831,7 +1767,7 @@
    #etb-quick-urgent-notice{
     width: 100% !important;
    }
-
+   
    
 }
 
@@ -2080,8 +2016,6 @@
         width: 100% !important;
     }
     
-   
-    
     .etb-bar-col1 {
         align-items: center !important;
         text-align: center !important;
@@ -2141,4 +2075,25 @@
 
 .etb-bar-v-title strong{
     color: var(--etb-text-primary) !important;
+}
+
+
+@media (max-width: 1100px) and (min-width: 901px) {
+    /* Sur les petits laptops, on empile le contenu de la barre pour laisser de la place */
+    .etb-quick-confirm-bar.is-visible {
+        flex-direction: column !important;
+        align-items: stretch !important;
+        flex-wrap: wrap !important;
+    }
+    .etb-quick-actions-row {
+        justify-content: end !important;
+        margin-top: 10px !important;
+
+    }
+}
+
+@media (max-width: 1200px) and (min-width: 1101px) {
+    .etb-quick-actions-row  {
+        flex-basis: min-content;
+    }
 }

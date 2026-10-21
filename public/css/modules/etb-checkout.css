@@ -1860,3 +1860,156 @@
         transform: translate(-50%, -170%) scale(0.85);
     }
 }
+
+/* ==========================================================================
+   NOUVEAUX CHAMPS FLOTTANTS (STYLE BLACKLANE / APPLE)
+   ========================================================================== */
+.etb-floating-field {
+    position: relative;
+    background: var(--etb-bg-input, rgba(255, 255, 255, 0.03));
+    border: 1.5px solid var(--etb-border-light, rgba(255, 255, 255, 0.12));
+    border-radius: 10px;
+    padding: 10px 14px;
+    transition: all 0.2s ease;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    min-height: 62px; /* Hauteur fixe pour l'alignement */
+}
+
+.etb-floating-field:focus-within {
+    border-color: var(--etb-accent-gold, #fbac18);
+    box-shadow: 0 0 0 3px rgba(251, 172, 24, 0.15);
+    background: var(--etb-bg-card, rgba(15, 23, 42, 0.6));
+}
+
+/* Le Label : Plus petit, en minuscule, plus discret */
+.etb-floating-field label {
+    font-size: 11px;
+    text-transform: none; /* Force les minuscules */
+    letter-spacing: 0.02em;
+    color: var(--etb-text-secondary, #94a3b8);
+    margin-bottom: 4px;
+    font-weight: 500; /* Moins gras pour un style plus fin */
+    pointer-events: none;
+}
+
+/* L'Input global (SANS le padding:0 agressif) */
+.etb-floating-field input {
+    background: transparent !important;
+    border: none !important;
+    color: var(--etb-text-primary, #ffffff) !important;
+    font-size: 15px !important;
+    font-weight: 500 !important;
+    outline: none !important;
+    box-shadow: none !important;
+    width: 100%;
+}
+
+/* On met le padding à 0 UNIQUEMENT pour les champs de texte/email */
+.etb-floating-field input:not([type="tel"]) {
+    padding: 0 !important;
+}
+
+/* ==========================================================================
+   CORRECTIF SPÉCIFIQUE POUR INTL-TEL-INPUT (CHAMP TÉLÉPHONE)
+   ========================================================================== */
+.etb-floating-field .iti {
+    width: 100% !important;
+    display: block !important;
+}
+
+/* ⚠️ C'EST ICI QUE LE BUG ÉTAIT : On ne touche PLUS au padding-left */
+.etb-floating-field .iti input {
+    padding-top: 2px !important;
+    padding-bottom: 2px !important;
+    padding-left: 90px !important; /* On laisse juste un petit espace de sécurité */
+}
+
+/* On s'assure que le conteneur du drapeau ne gêne pas */
+.etb-floating-field .iti__flag-container {
+    background: transparent !important;
+    display: flex !important;
+    align-items: center !important;
+}
+
+.etb-floating-field .iti__selected-flag {
+    background: transparent !important;
+    padding: 0 6px 0 0 !important; /* Petit espace après le drapeau */
+    height: 100% !important;
+    display: flex !important;
+    align-items: center !important;
+}
+
+/* Couleur de l'indicatif (+261) */
+.etb-floating-field .iti__dial-code {
+    color: var(--etb-text-primary, #ffffff) !important;
+    font-weight: 500 !important;
+}
+
+/* Anti-autofill Chrome */
+.etb-floating-field input:-webkit-autofill,
+.etb-floating-field input:-webkit-autofill:hover, 
+.etb-floating-field input:-webkit-autofill:focus {
+    -webkit-text-fill-color: var(--etb-text-primary, #ffffff);
+    -webkit-box-shadow: 0 0 0px 1000px var(--etb-bg-input, #0b0f19) inset;
+    transition: background-color 5000s ease-in-out 0s;
+}
+
+/* Ajustement des petits textes d'aide sous les champs */
+.etb-floating-field + .etb-chk-hint {
+    margin-top: 6px;
+    display: block;
+    font-size: 11px;
+}
+
+/* ==========================================================================
+   CORRECTIF DU DROPDOWN PAYS (INTL-TEL-INPUT)
+   ========================================================================== */
+
+/* 1. On autorise le formulaire à laisser déborder le menu vers le bas */
+.etb-checkout-card {
+    overflow: visible !important;
+}
+
+/* 2. On s'assure que le conteneur du champ est la référence de position */
+.etb-floating-field {
+    overflow: visible !important;
+    position: relative !important;
+}
+
+.etb-floating-field .iti {
+    position: relative !important;
+    width: 100% !important;
+}
+
+/* 3. On force le menu à s'ouvrir JUSTE EN DESSOUS du champ */
+.iti__country-list {
+    position: absolute !important;
+    top: 100% !important; /* Se place juste sous l'input */
+    left: 0 !important; /* Aligné à gauche avec l'input */
+    z-index: 999999 !important;
+    background-color: var(--etb-bg-card, #0f172a) !important;
+    border: 1px solid var(--etb-border-light, rgba(255,255,255,0.12)) !important;
+    color: var(--etb-text-primary, #ffffff) !important;
+    border-radius: 8px !important;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5) !important;
+    max-height: 250px !important;
+    min-width: 100% !important; /* Au moins la largeur du champ */
+    width: auto !important; /* S'adapte au texte le plus long */
+    max-width: 280px !important; /* Évite de déborder de l'écran sur mobile */
+    white-space: nowrap !important; /* Empêche le texte de revenir à la ligne */
+    overflow-x: hidden !important; /* Enlève la barre de défilement horizontale */
+    margin-top: 6px !important; /* Petit espace de respiration */
+}
+
+/* 4. Couleur au survol */
+.iti__country:hover, 
+.iti__country.iti__highlight {
+    background-color: rgba(251, 172, 24, 0.15) !important;
+}
+
+/* 5. Couleur de l'indicatif (+261) dans la liste */
+.iti__dial-code {
+    color: var(--etb-text-secondary, #94a3b8) !important;
+}
