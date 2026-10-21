@@ -1,0 +1,166 @@
+<?php
+/**
+ * Plugin Name: Elite Transfer Booking
+ * Plugin URI: 
+ * Description: Transferts privés : widget de réservation, checkout et paiement (Stripe / dispatch).
+ * Version:     1.0.0
+ * Author:      Reich C
+ * Text Domain: elite-transfer-booking
+ */
+
+if ( ! defined( 'ABSPATH' ) ) exit;
+
+// Garde anti-collision : les deux plugins Elite (Circuit / Transfer) partagent le même moteur
+// (mêmes classes ETB_*). Un seul des deux peut être actif sur un même site.
+if ( defined( 'ETB_VERSION' ) ) {
+    add_action( 'admin_notices', function () {
+        echo '<div class="notice notice-error"><p><strong>Elite Booking :</strong> un autre plugin Elite (Circuit ou Transfer) utilisant le même moteur est déjà actif. Désactivez-en un des deux.</p></div>';
+    } );
+} else {
+
+define( 'ETB_VERSION', '1.0.0' );
+define( 'ETB_PATH', plugin_dir_path( __FILE__ ) );
+define( 'ETB_URL', plugin_dir_url( __FILE__ ) );
+
+class Elite_Transfer_Booking {
+
+    private static $instance = null;
+
+    public static function get_instance() {
+        if ( null === self::$instance ) {
+            self::$instance = new self();
+        }
+        return self::$instance;
+    }
+
+    
+
+    public function enqueue_public_assets() {
+        // 1. Ré-enregistrement sécurisé de dashicons si le thème l'a déchargé
+        if ( ! wp_style_is( 'dashicons', 'registered' ) ) {
+            wp_register_style( 'dashicons', includes_url( 'css/dashicons.min.css' ), array(), false, 'all' );
+        }
+        wp_enqueue_style( 'dashicons' );
+
+        // 2. Module socle : Tokens globaux (ZÉRO dépendance bloquante)
+        wp_enqueue_style( 'etb-tokens', ETB_URL . 'public/css/modules/etb-tokens.css', array(), ETB_VERSION );
+
+        // 3. Modules thématiques (liés uniquement aux tokens internes, jamais aux scripts du thème)
+        wp_enqueue_style( 'intl-tel-input-style', 'https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/18.2.1/css/intlTelInput.css', array(), '18.2.1' );
+        wp_enqueue_style( 'etb-transfer-widget', ETB_URL . 'public/css/modules/etb-transfer-widget.css', array( 'etb-tokens' ), ETB_VERSION );
+       
+        wp_enqueue_style( 'etb-checkout', ETB_URL . 'public/css/modules/etb-checkout.css', array( 'etb-tokens', 'intl-tel-input-style' ), ETB_VERSION );
+        wp_enqueue_style( 'etb-payment', ETB_URL . 'public/css/modules/etb-payment.css', array( 'etb-tokens' ), ETB_VERSION );
+        
+        $gen_settings    = get_option( 'etb_general_settings', array() );
+        $currency_symbol = ! empty( $gen_settings['currency'] ) ? sanitize_text_field( $gen_settings['currency'] ) : '€';
+        $provider        = ! empty( $gen_settings['address_provider'] ) ? sanitize_text_field( $gen_settings['address_provider'] ) : 'google';
+        $google_key      = ! empty( $gen_settings['google_maps_api_key'] ) ? sanitize_text_field( trim( $gen_settings['google_maps_api_key'] ) ) : '';
+        $mapbox_token    = ! empty( $gen_settings['mapbox_token'] ) ? sanitize_text_field( trim( $gen_settings['mapbox_token'] ) ) : '';
+
+        // Chargement du script officiel Google Maps Places uniquement si Google est sélectionné (Langue : Anglais)
+        if ( 'google' === $provider && ! empty( $google_key ) ) {
+            wp_enqueue_script( 'google-maps-places', 'https://maps.googleapis.com/maps/api/js?key=' . esc_attr( $google_key ) . '&libraries=places&language=en', array(), null, true );
+        }
+
+        $script_deps = array( 'intl-tel-input-script' );
+
+        // Chargement de la librairie officielle Stripe.js si activée
+        $stripe_enabled = ! empty( $gen_settings['stripe_enabled'] ) && '1' === $gen_settings['stripe_enabled'];
+        $stripe_pk      = ! empty( $gen_settings['stripe_publishable_key'] ) ? trim( $gen_settings['stripe_publishable_key'] ) : '';
+
+        if ( $stripe_enabled && ! empty( $stripe_pk ) ) {
+            wp_enqueue_script( 'stripe-js', 'https://js.stripe.com/v3/', array(), null, true );
+            $script_deps[] = 'stripe-js';
+        }
+
+        // Librairie internationale de téléphone (245 pays)
+        wp_enqueue_script( 'intl-tel-input-script', 'https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/18.2.1/js/intlTelInput.min.js', array(), '18.2.1', true );
+
+        wp_enqueue_script( 'etb-booking-script', ETB_URL . 'public/js/booking-widget.js', $script_deps, ETB_VERSION, true );
+
+       
+
+        // Transmission des variables sécurisées à JavaScript
+        wp_localize_script( 'etb-booking-script', 'etbAjax', array(
+            'ajax_url'          => admin_url( 'admin-ajax.php' ),
+            'nonce'             => wp_create_nonce( 'etb_booking_nonce' ),
+            'currency'          => $currency_symbol,
+            'address_provider'  => $provider,
+            'google_key'        => $google_key,
+            'mapbox_token'      => $mapbox_token,
+            'checkout_url'      => ! empty( $gen_settings['checkout_page_url'] ) ? esc_url( $gen_settings['checkout_page_url'] ) : '',
+            'home_url'          => esc_url( home_url( '/' ) ),
+            'company_whatsapp'  => ! empty( $gen_settings['company_whatsapp'] ) ? preg_replace( '/[^0-9]/', '', $gen_settings['company_whatsapp'] ) : '',
+            'admin_email'       => ! empty( $gen_settings['admin_email'] ) && is_email( $gen_settings['admin_email'] ) ? sanitize_email( $gen_settings['admin_email'] ) : get_option( 'admin_email' ),
+            'stripe_enabled'    => $stripe_enabled ? '1' : '0',
+            'stripe_pk'         => $stripe_pk,
+        ) );
+    }
+    
+    private function __construct() {
+        $this->load_dependencies();
+        $this->instantiate_modules();
+        $this->init_hooks();
+    }
+
+    private function load_dependencies() {
+         require_once ETB_PATH . 'includes/class-etb-limoexpress.php'; // <-- AJOUT DE CETTE LIGNE
+         require_once ETB_PATH . 'includes/class-etb-stripe.php'; // <-- Connecteur Stripe autonome
+         require_once ETB_PATH . 'includes/class-etb-dispatcher-manager.php'; // <-- AJOUT DE CETTE LIGNE
+        require_once ETB_PATH . 'includes/class-etb-security.php';
+        require_once ETB_PATH . 'includes/class-etb-cpt-manager.php';
+        require_once ETB_PATH . 'includes/class-etb-settings.php';
+        
+        require_once ETB_PATH . 'includes/class-etb-pricing-engine.php';
+        require_once ETB_PATH . 'includes/class-etb-meta-manager.php';
+        require_once ETB_PATH . 'includes/class-etb-ajax.php';
+        require_once ETB_PATH . 'includes/class-etb-shortcode.php';
+    }
+
+    private function init_hooks() {
+    add_action( 'init', array( $this, 'register_cpts' ), 0 );
+    add_action( 'wp_enqueue_scripts', array( $this, 'enqueue_public_assets' ), 99 );
+}
+
+    public function register_cpts() {
+        $cpt_manager = new ETB_CPT_Manager();
+        $cpt_manager->register_all_cpts();
+    }
+
+    public function instantiate_modules() {
+        new ETB_Settings();
+        new ETB_Meta_Manager();
+        new ETB_Pricing_Engine();
+        new ETB_Ajax();
+        new ETB_Shortcode();
+        
+        // Branchement du module LimoExpress sur la Prise Universelle ETB
+        if ( class_exists( 'ETB_LimoExpress' ) ) {
+            ETB_LimoExpress::init_hooks();
+        }
+    }
+
+}
+
+
+// Activation / Désactivation avec flush des permaliens
+function etb_activate_plugin() {
+    $cpt_manager = new ETB_CPT_Manager();
+    $cpt_manager->register_all_cpts();
+    flush_rewrite_rules();
+}
+register_activation_hook( __FILE__, 'etb_activate_plugin' );
+
+function etb_deactivate_plugin() {
+    flush_rewrite_rules();
+}
+register_deactivation_hook( __FILE__, 'etb_deactivate_plugin' );
+
+// Lancement
+function etb_init_app() {
+    return Elite_Transfer_Booking::get_instance();
+}
+etb_init_app();
+
+}

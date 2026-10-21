@@ -1,0 +1,299 @@
+/* ==========================================================================
+   ETB MODULE — PAGE DE PAIEMENT AUTONOME [etb_payment] (STRIPE HOSTED STYLE)
+   ========================================================================== */
+
+/* ==========================================================================
+   BOÎTIER STRIPE OFFICIEL : DÉCOUPE EN 2 RANGÉES (NUMÉRO / MM-AA / CVC)
+   ========================================================================== */
+.etb-stripe-split-card-box {
+    background: transparent !important;
+    border: 1px solid #a4a4a4 !important;
+    border-radius: 10px !important;
+    overflow: hidden !important;
+    transition: all 0.2s ease !important;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04) !important;
+    color: var(--etb-text-primary,#5b5b5b) !important;
+ 
+}
+/*
+
+[data-etb-theme="dark"] .etb-stripe-split-card-box .InputContainer input {
+    background: transparent !important;
+    border-color: #9d9d9d  !important;
+    color: #ffffff !important;
+}
+
+[data-etb-theme="light"] .etb-stripe-split-card-box .InputContainer input {
+    background: transparent !important;
+    border-color: #9d9d9d  !important;
+    color: #000000 !important;
+}*/
+
+.etb-stripe-split-card-box:focus-within {
+    border-color: var(--etb-accent-gold, #fbac18) !important;
+    box-shadow: 0 0 0 3px rgba(251, 172, 24, 0.15) !important;
+}
+
+/* Rangée 1 : Numéro de carte avec logo intégré à gauche */
+.etb-stripe-row-top {
+    display: flex !important;
+    align-items: center !important;
+    padding: 8px 12px !important;
+    min-height: 44px !important;
+}
+
+.etb-stripe-row-top .etb-stripe-inner-mount {
+    width: 100% !important;
+}
+
+.etb-stripe-inner-mount {
+    flex: 1 !important;
+}
+
+/* Les petits logos de cartes colorés officiels */
+.etb-stripe-official-badges {
+    display: flex !important;
+    align-items: center !important;
+    gap: 4px !important;
+    user-select: none !important;
+}
+
+.etb-badge-card {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    font-size: 9px !important;
+    font-weight: 900 !important;
+    letter-spacing: 0.02em !important;
+    padding: 2px 5px !important;
+    border-radius: 3px !important;
+    height: 18px !important;
+    border: 1px solid rgba(0,0,0,0.08) !important;
+}
+
+.etb-badge-visa {
+    background: #1a1f71 !important;
+    color: #ffffff !important;
+    font-style: italic !important;
+}
+
+.etb-badge-mc {
+    background: #0a0a0a !important;
+    position: relative !important;
+    width: 28px !important;
+}
+
+.etb-badge-mc .mc-red {
+    width: 10px !important;
+    height: 10px !important;
+    background: #eb001b !important;
+    border-radius: 50% !important;
+    display: inline-block !important;
+    margin-right: -4px !important;
+}
+
+.etb-badge-mc .mc-yellow {
+    width: 10px !important;
+    height: 10px !important;
+    background: #f79e1b !important;
+    border-radius: 50% !important;
+    display: inline-block !important;
+    opacity: 0.9 !important;
+}
+
+.etb-badge-amex {
+    background: #007bc1 !important;
+    color: #ffffff !important;
+}
+
+.etb-badge-discover {
+    background: #ff6000 !important;
+    color: #ffffff !important;
+    font-size: 8px !important;
+}
+
+/* Ligne médiane de séparation */
+.etb-stripe-card-divider {
+    height: 1px !important;
+    background: #e2e8f0 !important;
+    width: 100% !important;
+}
+
+[data-etb-theme="dark"] .etb-stripe-card-divider {
+    background: #28334b !important;
+}
+
+/* Rangée 2 : MM/AA et CVC */
+.etb-stripe-row-bottom {
+    display: flex !important;
+    align-items: center !important;
+    min-height: 42px !important;
+}
+
+.etb-mount-expiry {
+    flex: 1 !important;
+    padding: 10px 14px !important;
+}
+
+.etb-stripe-vertical-divider {
+    width: 1px !important;
+    height: 42px !important;
+    background: #e2e8f0 !important;
+}
+
+[data-etb-theme="dark"] .etb-stripe-vertical-divider {
+    background: #28334b !important;
+}
+
+.etb-stripe-cvc-wrap {
+    flex: 1 !important;
+    display: flex !important;
+    align-items: center !important;
+    padding: 10px 14px !important;
+    position: relative !important;
+}
+
+.etb-mount-cvc {
+    flex: 1 !important;
+}
+
+.etb-cvc-icon {
+    color: #94a3b8 !important;
+    flex-shrink: 0 !important;
+    margin-left: 6px !important;
+}
+
+/* Texte de disclaimer (sans case à cocher) */
+.etb-payment-disclaimer-text p {
+    font-size: 12px !important;
+    line-height: 1.55 !important;
+}
+
+
+
+
+
+
+/* ==========================================================================*/
+
+[data-etb-theme="dark"] #etb-pay-display-tip-line{
+    font-weight: bold !important;
+    color: #4ad43f !important;
+}
+
+[data-etb-theme="light"] #etb-pay-display-tip-line{
+    font-weight: bold !important;
+    color: #6f6f6f !important ;
+}
+
+[data-etb-theme="dark"] .baby-seat-list{
+    margin-top: 10px;
+    font-size: 11.5px;
+    color: #fbac18;
+    background: rgb(89 61 7 / 30%);
+    padding: 5px 12px;
+    border-radius: 6px;
+    display: inline-block;
+}
+
+[data-etb-theme="light"] .baby-seat-list{
+    margin-top: 10px;
+    font-size: 11.5px;
+    color: #0b0b0b;
+    background: rgb(78 78 78 / 14%);
+    padding: 5px 12px;
+    border-radius: 6px;
+    display: inline-block;
+}
+
+
+/* ANIMATION EMOJI*/
+
+/* Animation d'un émoji animé plus subtil (44px) */
+.etb-animated-burst-emoji {
+    position: fixed;
+    pointer-events: none;
+    z-index: 999999;
+    width: 44px;
+    height: 44px;
+    user-select: none;
+    will-change: transform, opacity;
+    animation: etbSingleEmojiFloat 1.2s cubic-bezier(0.2, 0.9, 0.3, 1) forwards;
+}
+
+.etb-animated-burst-emoji img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    filter: drop-shadow(0 3px 8px rgba(0, 0, 0, 0.25));
+}
+
+@keyframes etbSingleEmojiFloat {
+    0% {
+        opacity: 0;
+        transform: translate(-50%, -10%) scale(0.4);
+    }
+    18% {
+        opacity: 1;
+        transform: translate(-50%, -45%) scale(1.15);
+    }
+    35% {
+        transform: translate(-50%, -75%) scale(1.0);
+    }
+    70% {
+        opacity: 1;
+        transform: translate(-50%, -125%) scale(1.0);
+    }
+    100% {
+        opacity: 0;
+        transform: translate(-50%, -170%) scale(0.85);
+    }
+}
+
+/* Badge de l'émoji persistant sous les pilules */
+.etb-tip-persistent-badge {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin-top: 10px;
+    min-height: 32px;
+    transition: opacity 0.25s ease, transform 0.25s ease;
+}
+
+.etb-tip-persistent-badge img {
+    width: 30px;
+    height: 30px;
+    object-fit: contain;
+}
+
+
+
+/* Surbrillance active lors de la recherche au clavier dans le sélecteur de pays */
+.etb-chk-field .etb-custom-option.highlighted {
+    background: #1e2638 !important;
+    color: #fbac18 !important;
+    font-weight: 700 !important;
+    border-left: 3px solid #fbac18 !important;
+}
+
+[data-etb-theme="light"] .etb-chk-field .etb-custom-option.highlighted {
+    background: #f1f5f9 !important;
+    color: #e65a15 !important;
+    font-weight: 700 !important;
+    border-left: 3px solid #e65a15 !important;
+}
+
+
+.GooglePayButton {
+    border: 0;
+    cursor: pointer;
+    max-height: 64px;
+    min-height: 32px;
+    position: relative;
+}
+
+.GooglePayButton--light, .GooglePayButton--lightOutline
+ {
+    background-color: #ffffff00;
+}
