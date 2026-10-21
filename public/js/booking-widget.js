@@ -4525,12 +4525,20 @@
         };
     };
 
-    // Lancement au chargement de la page
+        // Lancement au chargement de la page
     const startApp = function () {
         initThemeDetector();
-        initQuickWidget();
-        initCheckoutApp();
-        initStandalonePaymentPage();
+
+        // Initialisation conditionnelle : On ne lance le module que si son conteneur HTML existe
+        if ( document.querySelector('#etb-quick-widget-app') ) {
+            initQuickWidget();
+        }
+        if ( document.querySelector('#etb-checkout-app') ) {
+            initCheckoutApp();
+        }
+        if ( document.querySelector('#etb-payment-page-app') ) {
+            initStandalonePaymentPage();
+        }
     };
 
     if (document.readyState === 'loading') {

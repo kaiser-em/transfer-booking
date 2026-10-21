@@ -35,8 +35,44 @@ class Elite_Transfer_Booking {
 
     
 
-    public function enqueue_public_assets() {
-        // 1. Ré-enregistrement sécurisé de dashicons si le thème l'a déchargé
+        public function enqueue_public_assets() {
+        // 1. Vérifier qu'on est sur une page (et non une archive ou une 404)
+        if ( ! is_singular() ) {
+            return;
+        }
+
+        global $post;
+        $has_shortcode = false;
+
+        if ( is_a( $post, 'WP_Post' ) ) {
+            // A. Détection classique dans le contenu (Gutenberg / Classic Editor)
+            if ( has_shortcode( $post->post_content, 'etb_transfer' ) ||
+                 has_shortcode( $post->post_content, 'etb_checkout' ) ||
+                 has_shortcode( $post->post_content, 'etb_payment' ) ) {
+                $has_shortcode = true;
+            }
+            
+            // B. Détection spécifique pour Elementor (car le contenu est dans une meta donnée)
+            if ( ! $has_shortcode && did_action( 'elementor/loaded' ) ) {
+                $elementor_data = get_post_meta( $post->ID, '_elementor_data', true );
+                if ( $elementor_data && (
+                    strpos( $elementor_data, 'etb_transfer' ) !== false || 
+                    strpos( $elementor_data, 'etb_checkout' ) !== false || 
+                    strpos( $elementor_data, 'etb_payment' ) !== false 
+                ) ) {
+                    $has_shortcode = true;
+                }
+            }
+        }
+
+        // 2. Si aucun de nos shortcodes n'est présent, on s'arrête ici (Zéro impact sur le reste du site)
+        if ( ! $has_shortcode ) {
+            return;
+        }
+
+        // 3. À partir d'ici, c'est VOTRE CODE ACTUEL (qui ne s'exécutera que sur les bonnes pages)
+        
+        // Ré-enregistrement sécurisé de dashicons si le thème l'a déchargé
         if ( ! wp_style_is( 'dashicons', 'registered' ) ) {
             wp_register_style( 'dashicons', includes_url( 'css/dashicons.min.css' ), array(), false, 'all' );
         }
