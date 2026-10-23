@@ -114,25 +114,6 @@ $now_time = '';
             <div class="etb-quick-suggestions-box" id="etb-quick-dropoff-suggestions" style="display: none;"></div>
         </div>
 
-        <!-- Colonne 2bis : Durée (Choix dynamique de 3h à 24h) -->
-        <div class="etb-quick-col" id="etb-quick-duration-col" style="display: none; position: relative;">
-            <span class="etb-quick-label">Duration</span>
-            <input type="hidden" name="etb_quick_duration" id="etb-quick-duration" value="4">
-            
-            <div class="etb-custom-select" id="etb-duration-custom-select">
-                <div class="etb-custom-select-trigger">
-                    <span>4 Hours</span>
-                    <i class="dashicons dashicons-arrow-down-alt2"></i>
-                </div>
-                <div class="etb-custom-select-options">
-                    <?php for ( $dur = 3; $dur <= 24; $dur++ ) : ?>
-                        <div class="etb-custom-option <?php echo ( 4 === $dur ) ? 'selected' : ''; ?>" data-val="<?php echo esc_attr( $dur ); ?>">
-                            <?php echo esc_html( $dur ); ?> Hours
-                        </div>
-                    <?php endfor; ?>
-                </div>
-            </div>
-        </div>
 
 
         <div class="etb-quick-divider"></div>
@@ -179,6 +160,29 @@ $now_time = '';
                 </div>
             </div>
         </div>
+
+
+        <!-- Colonne 2bis : Durée (Choix dynamique de 3h à 24h) -->
+        <div class="etb-quick-col" id="etb-quick-duration-col" style="display: none; position: relative;">
+            <span class="etb-quick-label">Duration</span>
+            <input type="hidden" name="etb_quick_duration" id="etb-quick-duration" value="4">
+            
+            <div class="etb-custom-select" id="etb-duration-custom-select">
+                <div class="etb-custom-select-trigger">
+                    <span>4 Hours</span>
+                    <i class="dashicons dashicons-arrow-down-alt2"></i>
+                </div>
+                <div class="etb-custom-select-options">
+                    <?php for ( $dur = 3; $dur <= 24; $dur++ ) : ?>
+                        <div class="etb-custom-option <?php echo ( 4 === $dur ) ? 'selected' : ''; ?>" data-val="<?php echo esc_attr( $dur ); ?>">
+                            <?php echo esc_html( $dur ); ?> Hours
+                        </div>
+                    <?php endfor; ?>
+                </div>
+            </div>
+        </div>
+        <!-- ⬆️ FIN DU BLOC DURÉE ⬆️ -->
+        
 
         <!-- Colonne 5 : Bouton Voir les options -->
         <div class="etb-quick-btn-col">

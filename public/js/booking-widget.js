@@ -998,9 +998,10 @@
                 const totalKm = Math.round(durationHours * kmPerHour);
                 const kmInfoEl = card.querySelector('.etb-quick-km-info');
                 if (kmInfoEl) {
-                    let kmText = '' + totalKm + ' km included';
+                    // 💡 NOUVEAU FORMAT : Total | Quota par heure (Tarif sup)
+                    let kmText = `${totalKm} km included | ${kmPerHour} km per H`;
                     if (kmSupRate > 0) {
-                        kmText += ' (' + kmSupRate.toFixed(2) + ' €/km sup.)';
+                        kmText += ` (${kmSupRate.toFixed(2)} €/km sup.)`;
                     }
                     kmInfoEl.textContent = kmText;
                     kmInfoEl.classList.add('is-visible'); // <-- Activation via la classe CSS
@@ -1431,6 +1432,15 @@
 
             let message = '';
             let emailMessage = ''; // <-- AJOUT INDISPENSABLE ICI
+                        // Fonction de formatage de date (ex: 2026-10-23 -> 23 Oct 2026)
+            const formatDateToText = (dateStr) => {
+                if (!dateStr) return '—';
+                const parts = dateStr.split('-');
+                if (parts.length !== 3) return dateStr;
+                const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                const mIdx = parseInt(parts[1], 10) - 1;
+                return `${parseInt(parts[2], 10)} ${months[mIdx]} ${parts[0]}`;
+            };
             const waveEmoji = String.fromCodePoint(0x1F44B);
 
             if (selectedCar) {
@@ -1452,14 +1462,28 @@
                 const urgentPrefixMail = isUrgent ? '🔴 𝗨𝗥𝗚𝗘𝗡𝗧 𝗕𝗢𝗢𝗞𝗜𝗡𝗚 🔴\n\n' : '';
 
                 // On prépare le corps du message commun
+                const formattedDate = formatDateToText(rawDate);
+
+                // 💡 NOUVEAU : Calcul du tarif horaire pour le mode By the hour
+                let perHourHtml = '';
+                if (isHourly && !selectedCar.isQuote && parseFloat(selectedCar.price) > 0) {
+                    const durationNum = parseFloat(durationSelect ? durationSelect.value : 4);
+                    if (durationNum > 0) {
+                        const perHourRate = Math.round(parseFloat(selectedCar.price) / durationNum);
+                        perHourHtml = `• Per Hour: ${perHourRate} ${currency}\n`;
+                    }
+                }
+
                 const baseMessage = `Hello team ${waveEmoji},\n\n`
                     + `I would like to inquire about booking a transfer:\n\n`
-                    + `*${selectedCar.name}${paxText}*\n`
+                    + `*${selectedCar.name}${paxText}*\n` // <-- Gras actif pour WhatsApp
                     + `• Pickup: ${pVal}\n`
                     + `• Destination: ${dVal}\n`
-                    + `• Date & Time: ${rawDate} at ${tmVal}\n`
-                    + `• Rate: ${rateText}\n\n`
-                    + `Thank you!`;
+                    + `• Date: ${formattedDate}\n`
+                    + `• Time: ${tmVal}\n`
+                    + `• Rate: ${rateText}\n`
+                    + `${perHourHtml}`                   // <-- Ajout de la ligne Per Hour
+                    + `\nThank you!`;
 
                 // On génère les deux versions
                 message      = urgentPrefixWa + baseMessage;
@@ -1477,9 +1501,10 @@
                 cartTrips.forEach((t, i) => {
                     const rText = t.isQuote ? 'Quote' : `${t.price} ${currency}`;
                     if (t.isQuote) hasQuote = true; else totalSum += parseFloat(t.price) || 0;
-                    cartBody += `*Transfer #${i + 1} (${t.vehicle_name})*\n`
+                                        cartBody += `*Transfer #${i + 1} (${t.vehicle_name})*\n`
                         + `  • Route: ${t.pickup} ➔ ${t.dropoff}\n`
-                        + `  • Date: ${t.date} at ${t.time}\n`
+                        + `  • Date: ${formatDateToText(t.date)}\n`
+                        + `  • Time: ${t.time}\n`
                         + `  • Rate: ${rText}\n\n`;
                 });
 

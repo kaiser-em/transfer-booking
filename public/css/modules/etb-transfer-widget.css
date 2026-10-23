@@ -195,7 +195,7 @@
     /*box-shadow: var(--etb-shadow-base, 0 10px 30px rgba(0, 0, 0, 0.1)) !important;*/
     border-radius: 16px !important;
     padding: 18px 24px !important;
-    gap: 18px !important;
+    gap: 30px !important;
     width: 100% !important;
 }
 
@@ -335,6 +335,7 @@
     width: 100% !important;
     transition: all 0.25s ease !important;
     max-height: 40px !important;
+    height: 37px !important;
 }
 
 .etb-quick-col input::placeholder {
@@ -2096,4 +2097,13 @@
     .etb-quick-actions-row  {
         flex-basis: min-content;
     }
+}
+
+/* ==========================================================================
+   RÉDUCTION DE LA LARGEUR DU CHAMP DURÉE (MODE À L'HEURE)
+   ========================================================================== */
+#etb-quick-duration-col {
+    flex: 0 0 auto !important; /* Empêche le champ de prendre tout l'espace disponible */
+    max-width: 120px !important; /* Réduit la largeur (ajustez à 130px ou 110px si besoin) */
+    min-width: 100px !important; /* Assure que le texte "X Hours" ne soit pas coupé */
 }
