@@ -7,12 +7,14 @@ class ETB_Pricing_Engine {
 
     /**
      * Recherche native et autonome des données de l'option de circuit
+     * OPTIMISÉ: caching transient + pré-filtre LIKE pour éviter un scan complet
      */
     public static function find_circuit_option_data( $option_id, $circuit_id = 0 ) {
         if ( empty( $option_id ) ) {
             return null;
         }
 
+        // 1. Tentative locale si circuit_id fourni (le plus rapide)
         if ( ! empty( $circuit_id ) ) {
             $options = get_post_meta( $circuit_id, '_circuit_options_data', true );
             if ( is_array( $options ) && isset( $options[ $option_id ] ) ) {
@@ -23,10 +25,20 @@ class ETB_Pricing_Engine {
             }
         }
 
+        // 2. Vérifier le cache transient avant requête SQL (expire 1 heure)
+        $cache_key = 'etb_circuit_option_' . md5( $option_id );
+        $cached = get_transient( $cache_key );
+        if ( false !== $cached ) {
+            return $cached;
+        }
+
+        // 3. Requête SQL ciblée : pré-filtre LIKE sur l'ID d'option (aucune limite arbitraire)
         global $wpdb;
+        $like = '%' . $wpdb->esc_like( $option_id ) . '%';
         $meta_rows = $wpdb->get_results( $wpdb->prepare(
-            "SELECT post_id, meta_value FROM {$wpdb->postmeta} WHERE meta_key = %s",
-            '_circuit_options_data'
+            "SELECT post_id, meta_value FROM {$wpdb->postmeta} WHERE meta_key = %s AND meta_value LIKE %s",
+            '_circuit_options_data',
+            $like
         ) );
 
         if ( ! empty( $meta_rows ) ) {
@@ -36,6 +48,9 @@ class ETB_Pricing_Engine {
                     $data = $options[ $option_id ];
                     $data['circuit_id']    = $row->post_id;
                     $data['circuit_title'] = get_the_title( $row->post_id );
+
+                    // Mettre en cache pour 1 heure
+                    set_transient( $cache_key, $data, HOUR_IN_SECONDS );
                     return $data;
                 }
             }

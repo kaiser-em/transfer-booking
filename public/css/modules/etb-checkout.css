@@ -117,6 +117,7 @@
     width: 38px !important;
     height: 38px !important;
     min-width: 38px !important;
+    color: var(--etb-accent-gold) !important;
     background: rgba(251, 172, 24, 0.08) !important;
     border: 1px solid rgba(251, 172, 24, 0.25) !important;
     border-radius: 10px !important;
@@ -181,7 +182,6 @@
 .etb-chk-field select:focus,
 .etb-chk-field textarea:focus {
     border-color: #fbac18 !important;
-    box-shadow: 0 0 0 3px rgba(251, 172, 24, 0.15) !important;
 }
 
 .etb-checkout-card input {
@@ -208,7 +208,7 @@
     align-items: center !important;
     gap: 8px !important;
     padding: 10px 18px !important;
-    background: #151b29 !important;
+    background: var(--etb-bg-input,#151b29 ) !important;
     border: 1.5px solid #28334b !important;
     border-radius: 50px !important;
     color: #94a3b8 !important;
@@ -384,7 +384,6 @@
     justify-content: center !important;
     transition: background 0.2s ease !important;
     padding: 0 !important;
-    padding-bottom: 2px !important ;
 }
 
 .etb-chk-qty-btn:hover {
@@ -392,7 +391,7 @@
     color: #0f172a !important;
 }
 
-.etb-chk-qty-control input {
+.etb-chk-qty-control input[type="number"] {
     width: 28px !important;
     background: transparent !important;
     border: none !important;
@@ -402,6 +401,9 @@
     text-align: center !important;
     outline: none !important;
     padding: 0 !important;
+    -webkit-appearance: none !important;
+    -moz-appearance: textfield !important;
+    appearance: textfield !important;
 }
 
 
@@ -522,7 +524,7 @@
     background: var(--etb-bg-card, #0f1420) !important;
     border: 1.5px solid var(--etb-border-main, #232a3b) !important;
     border-radius: 20px !important;
-    padding: 24px 26px !important;
+    padding: 24px 20px !important;
     /*box-shadow: var(--etb-shadow-base, 0 20px 50px rgba(0, 0, 0, 0.1)) !important;*/
 }
 .etb-chk-summary-title {
@@ -540,8 +542,8 @@
     display: flex !important;
     align-items: center !important;
     gap: 14px !important;
-    background: rgba(255, 255, 255, 0.03) !important;
-    border: 1px solid rgba(25, 25, 25, 0.16) !important;
+    background: rgba(255, 255, 255, 0.07) !important;
+    border: 1px solid rgba(25, 25, 25, 0.07) !important;
     border-radius: 12px !important;
     padding: 12px 14px !important;
     margin-bottom: 18px !important;
@@ -680,7 +682,7 @@
 
 /* Garanties Blacklane */
 .etb-chk-guarantees {
-    background: rgba(255, 255, 255, 0.02) !important;
+    background: rgba(255, 255, 255, 0.07) !important;
     border-radius: 10px !important;
     padding: 12px 14px !important;
     margin-bottom: 18px !important;
@@ -877,7 +879,7 @@
 
 /* Boutons +/- de quantité */
 [data-etb-theme="light"] .etb-chk-qty-control {
-    background: #e2e8f0 !important;
+    background: var(--etb-bg-input, #e2e8f0) !important;
     border: 1px solid #cbd5e1 !important;
 }
 
@@ -1038,9 +1040,9 @@
 }
 
 [data-etb-theme="light"] .etb-tip-pill.active {
-    background: rgba(251, 172, 24, 0.15) !important;
-    border-color: #fbac18 !important;
-    color: #b45309 !important;
+    background: var(--etb-brand-soft) !important;
+    border-color: var(--etb-brand) !important;
+    color: var(--etb-brand-ink) !important;
 }
 
 
@@ -1104,6 +1106,19 @@
     font-size: 15px !important;
     width: 15px !important;
     height: 15px !important;
+}
+
+/* Lien Terms & Conditions configurable (Réglages → terms_url) */
+.etb-terms-link {
+    color: var(--etb-accent-gold) !important;
+    font-weight: 600 !important;
+    text-decoration: underline !important;
+    text-underline-offset: 2px !important;
+}
+
+.etb-terms-link:hover,
+.etb-terms-link:focus {
+    color: var(--etb-accent-gold-hover) !important;
 }
 
 /* En-tête de marque EDEN CAB */
@@ -2012,4 +2027,50 @@
 /* 5. Couleur de l'indicatif (+261) dans la liste */
 .iti__dial-code {
     color: var(--etb-text-secondary, #94a3b8) !important;
+}
+
+.etb-chk-qty-control {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  /* garde le reste de tes règles actuelles */
+}
+
+/* Boutons - et + : même largeur des deux côtés */
+.etb-chk-qty-control .etb-chk-qty-btn {
+  flex: 0 0 32px !important;
+  width: 32px !important;
+  height: 32px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 0 !important;
+  margin: 0px !important;
+  line-height: 1 !important;
+}
+
+/* Le chiffre : largeur fixe + centré */
+.etb-chk-qty-control  {
+  flex: 0 0 40px !important;
+  width: 107px !important;
+  height: 38px !important;
+  padding: 0px !important;
+  margin: 0 !important;
+  
+  background: #92929230 !important;
+  text-align: center !important;
+  font-variant-numeric: tabular-nums;
+  -moz-appearance: textfield !important;   /* Firefox : enlève les flèches */
+  appearance: textfield !important;
+}
+
+/* Chrome / Safari / Edge : enlève les flèches */
+.etb-chk-qty-control ::-webkit-outer-spin-button,
+.etb-chk-qty-control ::-webkit-inner-spin-button {
+  -webkit-appearance: none !important;
+  margin: 0 !important;
+}
+
+.etb-checkout-card input:focus-visible {
+    outline: none !important;
 }

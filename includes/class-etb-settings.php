@@ -76,21 +76,26 @@ class ETB_Settings {
         $new_input['payment_page_url']     = ! empty( $input['payment_page_url'] ) ? esc_url_raw( trim( $input['payment_page_url'] ) ) : '';
 
         // Coordonnées & Mentions Légales de l'Entreprise (Zéro Hardcode)
-        $new_input['company_legal_name']    = ! empty( $input['company_legal_name'] ) ? sanitize_text_field( trim( $input['company_legal_name'] ) ) : '"EDEN CAB" Ltd';
-        $new_input['company_subtitle']      = ! empty( $input['company_subtitle'] ) ? sanitize_text_field( trim( $input['company_subtitle'] ) ) : 'superior drive';
-        $new_input['company_address_line1'] = ! empty( $input['company_address_line1'] ) ? sanitize_text_field( trim( $input['company_address_line1'] ) ) : '250 avenue de Grasse';
-        $new_input['company_address_line2'] = ! empty( $input['company_address_line2'] ) ? sanitize_text_field( trim( $input['company_address_line2'] ) ) : 'Cannes 06400, France';
+        $new_input['company_legal_name']    = ! empty( $input['company_legal_name'] ) ? sanitize_text_field( trim( $input['company_legal_name'] ) ) : get_bloginfo( 'name' );
+        $new_input['company_subtitle']      = ! empty( $input['company_subtitle'] ) ? sanitize_text_field( trim( $input['company_subtitle'] ) ) : '';
+        $new_input['company_address_line1'] = ! empty( $input['company_address_line1'] ) ? sanitize_text_field( trim( $input['company_address_line1'] ) ) : '';
+        $new_input['company_address_line2'] = ! empty( $input['company_address_line2'] ) ? sanitize_text_field( trim( $input['company_address_line2'] ) ) : '';
         $new_input['company_logo_url']      = ! empty( $input['company_logo_url'] ) ? esc_url_raw( trim( $input['company_logo_url'] ) ) : '';
+        $new_input['terms_url']             = ! empty( $input['terms_url'] ) ? esc_url_raw( trim( $input['terms_url'] ) ) : '';
 
         // Configuration de la passerelle de paiement Stripe
         $new_input['stripe_enabled']         = isset( $input['stripe_enabled'] ) ? '1' : '0';
         $new_input['stripe_mode']            = ( isset( $input['stripe_mode'] ) && 'live' === $input['stripe_mode'] ) ? 'live' : 'test';
         $new_input['stripe_publishable_key'] = ! empty( $input['stripe_publishable_key'] ) ? sanitize_text_field( trim( $input['stripe_publishable_key'] ) ) : '';
         $new_input['stripe_secret_key']      = ! empty( $input['stripe_secret_key'] ) ? sanitize_text_field( trim( $input['stripe_secret_key'] ) ) : '';
+        $new_input['stripe_webhook_secret']  = ! empty( $input['stripe_webhook_secret'] ) ? sanitize_text_field( trim( $input['stripe_webhook_secret'] ) ) : '';
         $new_input['stripe_capture_method']  = ( isset( $input['stripe_capture_method'] ) && 'immediate' === $input['stripe_capture_method'] ) ? 'immediate' : 'manual';
 
         // Application de dispatch choisie (Autonome, LimoExpress...)
         $new_input['active_dispatcher'] = isset( $input['active_dispatcher'] ) ? sanitize_text_field( $input['active_dispatcher'] ) : 'none';
+
+        // Toggle Multi-Booking (panier multi-trajets)
+        $new_input['enable_multibooking'] = isset( $input['enable_multibooking'] ) ? '1' : '0';
 
         // Crochet WordPress (Hook) : on laisse l'application sélectionnée sauvegarder ses propres champs
         // Si LimoExpress est branché, c'est lui qui interceptera ce hook pour sauvegarder son Token.
@@ -195,7 +200,16 @@ class ETB_Settings {
             <h2 class="nav-tab-wrapper" style="margin-bottom: 20px; border-bottom: 1px solid #cbd5e1;">
                 <a href="?post_type=tour_booking&page=etb-settings&tab=general" class="nav-tab <?php echo $active_tab === 'general' ? 'nav-tab-active' : ''; ?>" style="font-weight: 600;">Réglages Généraux</a>
                 <a href="?post_type=tour_booking&page=etb-settings&tab=form" class="nav-tab <?php echo $active_tab === 'form' ? 'nav-tab-active' : ''; ?>" style="font-weight: 600;">Configuration Formulaire</a>
+                <a href="?post_type=tour_booking&page=etb-settings&tab=tools" class="nav-tab <?php echo $active_tab === 'tools' ? 'nav-tab-active' : ''; ?>" style="font-weight: 600;">Import / Export</a>
             </h2>
+
+            <?php
+            if ( 'tools' === $active_tab ) {
+                ETB_Import_Export::render_tab();
+                echo '</div>';
+                return;
+            }
+            ?>
 
             <form method="post" action="options.php">
                 <?php
@@ -250,6 +264,16 @@ class ETB_Settings {
                                             <p class="description">Format international (ex: <code>+33612345678</code>). Les demandes de devis directes lui seront automatiquement adressées par les clients.</p>
                                         </td>
                                     </tr>
+                                    <tr>
+                                        <th scope="row">Multi-Trajets (Panier)</th>
+                                        <td>
+                                            <label style="display:flex; align-items:center; gap:12px; cursor: pointer;">
+                                                <input type="checkbox" name="etb_general_settings[enable_multibooking]" value="1" <?php checked( $options['enable_multibooking'] ?? '0', '1' ); ?> style="width: 20px; height: 20px; cursor: pointer;">
+                                                <span style="color: #0f172a; font-weight: 600; font-size: 14px;">Activer le multi-booking</span>
+                                            </label>
+                                            <p class="description">Permet aux clients d'ajouter plusieurs trajets au panier avant de finaliser la réservation (utile pour les transferts aller-retour ou multi-destinations).</p>
+                                        </td>
+                                    </tr>
                                 </table>
                             </div>
 
@@ -261,7 +285,7 @@ class ETB_Settings {
                                     <tr>
                                         <th scope="row">Nom de l'expéditeur (From Name)</th>
                                         <td>
-                                            <input type="text" name="etb_general_settings[sender_name]" value="<?php echo esc_attr( $options['sender_name'] ?? get_bloginfo('name') ); ?>" class="regular-text" placeholder="EDEN CAB Reservations">
+                                            <input type="text" name="etb_general_settings[sender_name]" value="<?php echo esc_attr( $options['sender_name'] ?? get_bloginfo('name') ); ?>" class="regular-text" placeholder="Réservations">
                                             <p class="description">Le nom qui apparaît comme expéditeur dans la boîte de réception du client.</p>
                                         </td>
                                     </tr>
@@ -296,25 +320,32 @@ class ETB_Settings {
                                     <tr>
                                         <th scope="row">Nom légal de l'entreprise</th>
                                         <td>
-                                            <input type="text" name="etb_general_settings[company_legal_name]" value="<?php echo esc_attr( $options['company_legal_name'] ?? '"EDEN CAB" Ltd' ); ?>" class="regular-text">
+                                            <input type="text" name="etb_general_settings[company_legal_name]" value="<?php echo esc_attr( $options['company_legal_name'] ?? get_bloginfo( 'name' ) ); ?>" class="regular-text">
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <th scope="row">Lien Terms & Conditions</th>
+                                        <td>
+                                            <input type="url" name="etb_general_settings[terms_url]" value="<?php echo esc_url( $options['terms_url'] ?? '' ); ?>" class="regular-text" placeholder="https://votre-site.com/terms-and-conditions">
+                                            <p class="description">Rend « terms and conditions » cliquable sur la page de paiement (nouvel onglet). Laisser vide pour un texte non cliquable.</p>
                                         </td>
                                     </tr>
                                     <tr>
                                         <th scope="row">Slogan / Sous-titre</th>
                                         <td>
-                                            <input type="text" name="etb_general_settings[company_subtitle]" value="<?php echo esc_attr( $options['company_subtitle'] ?? 'superior drive' ); ?>" class="regular-text">
+                                            <input type="text" name="etb_general_settings[company_subtitle]" value="<?php echo esc_attr( $options['company_subtitle'] ?? '' ); ?>" class="regular-text" placeholder="Slogan de votre entreprise">
                                         </td>
                                     </tr>
                                     <tr>
                                         <th scope="row">Adresse (Ligne 1)</th>
                                         <td>
-                                            <input type="text" name="etb_general_settings[company_address_line1]" value="<?php echo esc_attr( $options['company_address_line1'] ?? '250 avenue de Grasse' ); ?>" class="regular-text">
+                                            <input type="text" name="etb_general_settings[company_address_line1]" value="<?php echo esc_attr( $options['company_address_line1'] ?? '' ); ?>" class="regular-text" placeholder="N° et rue">
                                         </td>
                                     </tr>
                                     <tr>
                                         <th scope="row">Ville & Code Postal (Ligne 2)</th>
                                         <td>
-                                            <input type="text" name="etb_general_settings[company_address_line2]" value="<?php echo esc_attr( $options['company_address_line2'] ?? 'Cannes 06400, France' ); ?>" class="regular-text">
+                                            <input type="text" name="etb_general_settings[company_address_line2]" value="<?php echo esc_attr( $options['company_address_line2'] ?? '' ); ?>" class="regular-text" placeholder="Code postal, Ville, Pays">
                                         </td>
                                     </tr>
                                 </table>
@@ -396,6 +427,16 @@ class ETB_Settings {
                                         <th scope="row">Clé Secrète (Secret Key)</th>
                                         <td>
                                             <input type="password" name="etb_general_settings[stripe_secret_key]" value="<?php echo esc_attr( $options['stripe_secret_key'] ?? '' ); ?>" class="regular-text" placeholder="sk_test_... ou sk_live_...">
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <th scope="row">Secret Webhook (whsec_...)</th>
+                                        <td>
+                                            <input type="password" name="etb_general_settings[stripe_webhook_secret]" value="<?php echo esc_attr( $options['stripe_webhook_secret'] ?? '' ); ?>" class="regular-text" placeholder="whsec_...">
+                                            <p class="description">
+                                                Secret de signature du endpoint <code><?php echo esc_html( admin_url( 'admin-ajax.php?action=etb_stripe_webhook' ) ); ?></code>.
+                                                À récupérer dans Stripe &rarr; Developers &rarr; Webhooks. Différent de la clé secrète API.
+                                            </p>
                                         </td>
                                     </tr>
                                     <tr>
@@ -486,7 +527,7 @@ class ETB_Settings {
                             uploadBtn.addEventListener('click', function(e) {
                                 e.preventDefault();
                                 var customUploader = wp.media({
-                                    title: 'Sélectionner le logo EDEN CAB',
+                                    title: 'Sélectionner le logo',
                                     button: { text: 'Utiliser ce logo' },
                                     multiple: false
                                 });

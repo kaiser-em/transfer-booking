@@ -3,7 +3,7 @@
  * Plugin Name: Elite Transfer Booking
  * Plugin URI: 
  * Description: Transferts privés : widget de réservation, checkout et paiement (Stripe / dispatch).
- * Version:     1.0.0
+ * Version:     1.1.0
  * Author:      Reich C
  * Text Domain: elite-transfer-booking
  */
@@ -18,7 +18,7 @@ if ( defined( 'ETB_VERSION' ) ) {
     } );
 } else {
 
-define( 'ETB_VERSION', '1.0.0' );
+define( 'ETB_VERSION', '1.1.0' );
 define( 'ETB_PATH', plugin_dir_path( __FILE__ ) );
 define( 'ETB_URL', plugin_dir_url( __FILE__ ) );
 
@@ -46,13 +46,25 @@ class Elite_Transfer_Booking {
 
         if ( is_a( $post, 'WP_Post' ) ) {
             // A. Détection classique dans le contenu (Gutenberg / Classic Editor)
-            if ( has_shortcode( $post->post_content, 'etb_transfer' ) ||
-                 has_shortcode( $post->post_content, 'etb_checkout' ) ||
-                 has_shortcode( $post->post_content, 'etb_payment' ) ) {
-                $has_shortcode = true;
+            $shortcodes = array( 'etb_transfer', 'etb_checkout', 'etb_payment' );
+            foreach ( $shortcodes as $sc ) {
+                if ( has_shortcode( $post->post_content, $sc ) ) {
+                    $has_shortcode = true;
+                    break;
+                }
             }
-            
-            // B. Détection spécifique pour Elementor (car le contenu est dans une meta donnée)
+
+            // B. Détection dans les blocs Gutenberg (si présents)
+            if ( ! $has_shortcode && function_exists( 'has_block' ) ) {
+                foreach ( $shortcodes as $sc ) {
+                    if ( has_block( 'core/shortcode', $post->post_content ) && strpos( $post->post_content, '[' . $sc ) !== false ) {
+                        $has_shortcode = true;
+                        break;
+                    }
+                }
+            }
+
+            // C. Détection spécifique pour Elementor (car le contenu est dans une meta donnée)
             if ( ! $has_shortcode && did_action( 'elementor/loaded' ) ) {
                 $elementor_data = get_post_meta( $post->ID, '_elementor_data', true );
                 if ( $elementor_data && (
@@ -87,6 +99,9 @@ class Elite_Transfer_Booking {
        
         wp_enqueue_style( 'etb-checkout', ETB_URL . 'public/css/modules/etb-checkout.css', array( 'etb-tokens', 'intl-tel-input-style' ), ETB_VERSION );
         wp_enqueue_style( 'etb-payment', ETB_URL . 'public/css/modules/etb-payment.css', array( 'etb-tokens' ), ETB_VERSION );
+
+        // Couche de thème unifiée (fond glass auto-portant, notices, scrollbars) — chargée en DERNIER
+        wp_enqueue_style( 'etb-theme', ETB_URL . 'public/css/modules/etb-theme.css', array( 'etb-tokens', 'etb-transfer-widget', 'etb-checkout', 'etb-payment' ), ETB_VERSION );
         
         $gen_settings    = get_option( 'etb_general_settings', array() );
         $currency_symbol = ! empty( $gen_settings['currency'] ) ? sanitize_text_field( $gen_settings['currency'] ) : '€';
@@ -131,7 +146,12 @@ class Elite_Transfer_Booking {
             'admin_email'       => ! empty( $gen_settings['admin_email'] ) && is_email( $gen_settings['admin_email'] ) ? sanitize_email( $gen_settings['admin_email'] ) : get_option( 'admin_email' ),
             'stripe_enabled'    => $stripe_enabled ? '1' : '0',
             'stripe_pk'         => $stripe_pk,
+            'enable_multibooking' => ! empty( $gen_settings['enable_multibooking'] ) && '1' === $gen_settings['enable_multibooking'] ? '1' : '0',
+            'min_delay_hours'   => ! empty( $gen_settings['min_delay'] ) ? absint( $gen_settings['min_delay'] ) : 24,
         ) );
+
+        // Dictionnaire de traduction frontend (FR si la langue du site est FR, sinon EN)
+        wp_localize_script( 'etb-booking-script', 'etbI18n', ETB_I18n::js_payload() );
     }
     
     private function __construct() {
@@ -151,7 +171,10 @@ class Elite_Transfer_Booking {
         require_once ETB_PATH . 'includes/class-etb-pricing-engine.php';
         require_once ETB_PATH . 'includes/class-etb-meta-manager.php';
         require_once ETB_PATH . 'includes/class-etb-ajax.php';
+        require_once ETB_PATH . 'includes/class-etb-logger.php';
         require_once ETB_PATH . 'includes/class-etb-shortcode.php';
+        require_once ETB_PATH . 'includes/class-etb-i18n.php';
+        require_once ETB_PATH . 'includes/class-etb-import-export.php';
     }
 
     private function init_hooks() {
@@ -170,6 +193,7 @@ class Elite_Transfer_Booking {
         new ETB_Pricing_Engine();
         new ETB_Ajax();
         new ETB_Shortcode();
+        new ETB_Import_Export();
         
         // Branchement du module LimoExpress sur la Prise Universelle ETB
         if ( class_exists( 'ETB_LimoExpress' ) ) {

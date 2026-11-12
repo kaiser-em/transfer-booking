@@ -38,6 +38,9 @@ class ETB_Meta_Manager {
         $km_included   = get_post_meta( $post->ID, '_etb_km_included_ph', true ) ?: '35';
         $km_sup_rate   = get_post_meta( $post->ID, '_etb_km_sup_rate', true );
 
+        $free_cancel_hours = get_post_meta( $post->ID, '_etb_free_cancel_hours', true );
+        if ( '' === $free_cancel_hours ) { $free_cancel_hours = 2; }
+
         $limo_class_id = get_post_meta( $post->ID, '_etb_limo_class_id', true );
         $extras = get_posts( array( 'post_type' => 'tour_extra', 'numberposts' => -1, 'post_status' => 'publish' ) );
         ?>
@@ -65,6 +68,25 @@ class ETB_Meta_Manager {
                     <input type="number" step="0.01" min="0" name="etb_pack_10h" value="<?php echo esc_attr( $pack_10h ); ?>" class="widefat" placeholder="Ex: 1250">
                 </div>
                 <div>
+                    <!-- Option : Forcer le devis en mode À l'heure -->
+                    <p style="background: #fff8ec; border-left: 3px solid #eab308; padding: 10px 12px; border-radius: 4px; margin-top: 15px;">
+                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; margin: 0;">
+                            <input type="checkbox" name="etb_hourly_quote_only" value="1" <?php checked( get_post_meta( $post->ID, '_etb_hourly_quote_only', true ), '1' ); ?>>
+                            <strong>Forcer "Upon Request" (Devis) pour ce véhicule en mode À l'heure</strong>
+                        </label>
+                        <span class="description" style="display: block; margin-top: 4px; font-size: 11px; margin-left: 24px;">Masque les prix calculés et demande un devis manuel, quelle que soit la durée sélectionnée.</span>
+                    </p>
+
+                    <!-- Option : Forcer le devis en mode Transfert Simple -->
+                <p style="background: #fef2f2; border-left: 3px solid #dc2626; padding: 10px 12px; border-radius: 4px; margin-top: 10px;">
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; margin: 0;">
+                        <input type="checkbox" name="etb_transfer_quote_only" value="1" <?php checked( get_post_meta( $post->ID, '_etb_transfer_quote_only', true ), '1' ); ?>>
+                        <strong>Forcer "Upon Request" (Devis) pour ce véhicule en mode Transfert Simple</strong>
+                    </label>
+                    <span class="description" style="display: block; margin-top: 4px; font-size: 11px; margin-left: 24px;">Masque les prix calculés Point A ➔ Point B et demande un devis manuel.</span>
+                </p>
+                 </div>
+                <div>
                     <label>Heure sup. au-delà de 10h (€/h) :</label><br>
                     <input type="number" step="0.01" min="0" name="etb_sup_hour_rate" value="<?php echo esc_attr( $sup_hour_rate ); ?>" class="widefat" placeholder="Ex: 125">
                 </div>
@@ -87,6 +109,11 @@ class ETB_Meta_Manager {
                 <label>Nombre max bagages :</label><br>
                 <input type="number" min="0" name="etb_max_bag" value="<?php echo esc_attr( $max_bag ); ?>" class="widefat">
             </p>
+        <p style="background: #f0fdf4; border-left: 3px solid #16a34a; padding: 10px 12px; border-radius: 4px;">
+            <label><strong>Délai d'annulation gratuite (heures avant le départ) :</strong></label><br>
+            <input type="number" min="0" name="etb_free_cancel_hours" value="<?php echo esc_attr( $free_cancel_hours ); ?>" class="widefat" placeholder="Ex: 2">
+            <span class="description">Affiché dans le checkout selon le véhicule choisi (ex: « Annulation gratuite jusqu'à 2 heures avant le départ »). Mettre 0 pour masquer cette garantie (aucune annulation gratuite).</span>
+        </p>
             <p>
             <label><strong>🎬 GIF / Image animée au survol (Optionnel) :</strong></label><br>
             <input type="url" name="etb_hover_image" value="<?php echo esc_url( get_post_meta( $post->ID, '_etb_hover_image', true ) ); ?>" class="widefat" placeholder="https://.../mon-vehicule-anime.gif">
@@ -113,9 +140,13 @@ class ETB_Meta_Manager {
 
             // Affichage UNIQUEMENT si LimoExpress est sélectionné dans les Réglages
             if ( 'limoexpress' === $active_dispatcher ) :
-                $force_refresh = ! empty( $_GET['refresh_limo'] );
+                $force_refresh = false;
+                if ( ! empty( $_GET['refresh_limo'] ) ) {
+                    $refresh_nonce = isset( $_GET['_wpnonce'] ) ? sanitize_text_field( wp_unslash( $_GET['_wpnonce'] ) ) : '';
+                    $force_refresh = (bool) wp_verify_nonce( $refresh_nonce, 'etb_refresh_limo' );
+                }
                 $limo_classes  = class_exists( 'ETB_LimoExpress' ) ? ETB_LimoExpress::get_vehicle_classes( $force_refresh ) : array();
-                $refresh_url   = add_query_arg( 'refresh_limo', '1' );
+                $refresh_url   = wp_nonce_url( add_query_arg( 'refresh_limo', '1' ), 'etb_refresh_limo' );
             ?>
                 <hr style="margin: 15px 0;">
                 <p>
@@ -648,9 +679,12 @@ class ETB_Meta_Manager {
                 update_post_meta( $post_id, '_etb_sup_hour_rate', $sup_hour_rate );
                 update_post_meta( $post_id, '_etb_km_included_ph', $km_included );
                 update_post_meta( $post_id, '_etb_km_sup_rate', $km_sup_rate );
+                update_post_meta( $post_id, '_etb_hourly_quote_only', isset( $_POST['etb_hourly_quote_only'] ) ? '1' : '0' );
+                update_post_meta( $post_id, '_etb_transfer_quote_only', isset( $_POST['etb_transfer_quote_only'] ) ? '1' : '0' );
 
                 update_post_meta( $post_id, '_etb_max_pax', absint( $_POST['etb_max_pax'] ?? 0 ) );
                 update_post_meta( $post_id, '_etb_max_baggage', absint( $_POST['etb_max_bag'] ?? 0 ) );
+                update_post_meta( $post_id, '_etb_free_cancel_hours', isset( $_POST['etb_free_cancel_hours'] ) ? max( 0, absint( $_POST['etb_free_cancel_hours'] ) ) : 2 );
                 update_post_meta( $post_id, '_etb_hover_image', esc_url_raw( $_POST['etb_hover_image'] ?? '' ) );
                 update_post_meta( $post_id, '_etb_vehicle_featured', isset( $_POST['etb_vehicle_featured'] ) ? '1' : '0' );
 

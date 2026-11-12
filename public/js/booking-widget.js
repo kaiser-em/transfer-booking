@@ -5,6 +5,22 @@
 (function () {
     'use strict';
 
+    // Neutralise toute valeur interpolée dans du HTML (adresses, noms, données sessionStorage…)
+    const escapeHtml = function (value) {
+        return String(value == null ? '' : value).replace(/[&<>"']/g, function (ch) {
+            return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch];
+        });
+    };
+
+    // Traduction légère : dictionnaire EN→FR injecté via wp_localize_script (etbI18n).
+    // Hors français, ou clé absente, le texte anglais source est retourné tel quel.
+    const etbT = function (text) {
+        if (typeof etbI18n !== 'undefined' && etbI18n.lang === 'fr' && etbI18n.fr && etbI18n.fr[text]) {
+            return etbI18n.fr[text];
+        }
+        return text;
+    };
+
 
 
     // ==========================================================================
@@ -17,16 +33,8 @@
             const saved = localStorage.getItem('etb_theme_mode');
             if (saved === 'dark' || saved === 'light') return saved;
 
-            // Détection via les classes courantes des thèmes WordPress sur <html> ou <body>
-            const rootClasses = (document.documentElement.className + ' ' + document.body.className).toLowerCase();
-            if (rootClasses.includes('dark') || rootClasses.includes('night') || rootClasses.includes('black')) {
-                return 'dark';
-            }
-            if (rootClasses.includes('light') || rootClasses.includes('day') || rootClasses.includes('white')) {
-                return 'light';
-            }
-
-            // Détection selon la préférence du système / navigateur
+            // Le fond du widget est indépendant de la page hôte : on ne lit PLUS les
+            // classes du thème WordPress. Défaut = préférence système, sinon VIP Dark.
             if (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) {
                 return 'light';
             }
@@ -40,15 +48,13 @@
             document.documentElement.setAttribute('data-etb-theme', themeName);
 
            
-            const targets = document.querySelectorAll('#etb-quick-widget-app, #etb-checkout-app, .co-circuit-wrapper');
+            const targets = document.querySelectorAll('#etb-quick-widget-app, #etb-checkout-app, #etb-payment-page-app, .co-circuit-wrapper');
             targets.forEach(el => {
                 el.setAttribute('data-etb-theme', themeName);
             });
 
             // Déclenche un événement global pour avertir tous les modules (y compris Stripe) du changement de thème
             document.dispatchEvent(new CustomEvent('etb_theme_changed', { detail: { theme: themeName } }));
-                console.log("🌟 Thème appliqué :", themeName);
- 
         };
 
         // 3. Lancement immédiat
@@ -65,8 +71,9 @@
                     e.preventDefault();
                     e.stopPropagation();
 
-                    // Lecture du thème actuel et inversion
-                    const currentTheme = localStorage.getItem('etb_theme_mode') || 'dark';
+                    // Lecture du thème réellement appliqué (et non du seul stockage) puis inversion
+                    const currentTheme = document.documentElement.getAttribute('data-etb-theme')
+                        || localStorage.getItem('etb_theme_mode') || 'dark';
                     const nextTheme    = (currentTheme === 'dark') ? 'light' : 'dark';
 
                     localStorage.setItem('etb_theme_mode', nextTheme);
@@ -80,7 +87,7 @@
         // 5. RADAR (MutationObserver) si le thème charge le widget en décalé
         const themeObserver = new MutationObserver(() => {
             bindToggleButtons();
-            const unstyledWidgets = document.querySelectorAll('#etb-quick-widget-app:not([data-etb-theme]), #etb-checkout-app:not([data-etb-theme])');
+            const unstyledWidgets = document.querySelectorAll('#etb-quick-widget-app:not([data-etb-theme]), #etb-checkout-app:not([data-etb-theme]), #etb-payment-page-app:not([data-etb-theme])');
             if (unstyledWidgets.length > 0) {
                 applyTheme(detectOptimalTheme());
             }
@@ -120,6 +127,7 @@
         const whatsappBtn    = quickRoot.querySelector('#etb-quick-whatsapp-btn');
         const bookBtnLabel   = quickRoot.querySelector('#etb-quick-book-btn-label');
         const urgentNoticeEl = quickRoot.querySelector('#etb-quick-urgent-notice');
+        const uponRequestNoticeEl = quickRoot.querySelector('#etb-quick-upon-request-notice'); // <-- NOUVEAU
 
         
 // Éléments du panier Multi-booking et du bouton doré flottant au-dessus de la barre
@@ -139,31 +147,39 @@
 
         // Toggle d'activation Multi-Booking
         const multiTripToggle = quickRoot.querySelector('#etb-multi-trip-toggle');
-        let isMultiBookingEnabled = false; // Désactivé par défaut
+        // Lire le setting depuis l'admin (défaut: désactivé si pas de config)
+        const adminMultiBookingEnabled = (typeof etbAjax !== 'undefined' && etbAjax.enable_multibooking === '1');
+        let isMultiBookingEnabled = adminMultiBookingEnabled;
 
         if (multiTripToggle) {
-            multiTripToggle.addEventListener('change', (e) => {
-                isMultiBookingEnabled = e.target.checked;
-                sessionStorage.setItem('etb_multi_booking_enabled', isMultiBookingEnabled ? '1' : '0');
-                
-                if (!isMultiBookingEnabled) {
-                    // Désactivation : On vide le panier et on masque les boutons
-                    cartTrips = [];
-                    saveCartToStorage();
-                    renderTripsCart();
-                    
-                    if (selectedCar) {
-                        if (bridgeTripWrap) bridgeTripWrap.style.display = 'none';
-                        if (bookBtnLabel) bookBtnLabel.textContent = selectedCar.isQuote ? 'Request' : 'Book Trip';
+            // Masquer le toggle si la fonctionnalité est désactivée depuis l'admin
+            if (!adminMultiBookingEnabled) {
+                multiTripToggle.parentElement.style.display = 'none';
+                multiTripToggle.checked = false;
+            } else {
+                multiTripToggle.addEventListener('change', (e) => {
+                    isMultiBookingEnabled = e.target.checked;
+                    sessionStorage.setItem('etb_multi_booking_enabled', isMultiBookingEnabled ? '1' : '0');
+
+                    if (!isMultiBookingEnabled) {
+                        // Désactivation : On vide le panier et on masque les boutons
+                        cartTrips = [];
+                        saveCartToStorage();
+                        renderTripsCart();
+
+                        if (selectedCar) {
+                            if (bridgeTripWrap) bridgeTripWrap.style.display = 'none';
+                            if (bookBtnLabel) bookBtnLabel.textContent = selectedCar.isQuote ? etbT('Request') : etbT('Book Trip');
+                        }
+                    } else {
+                        // Activation : On réaffiche le bouton d'ajout si une voiture est déjà sélectionnée
+                        if (selectedCar && bridgeTripWrap && bridgeTripLabel) {
+                            bridgeTripWrap.style.display = 'flex';
+                            bridgeTripLabel.textContent = etbT('Add another trip');
+                        }
                     }
-                } else {
-                    // Activation : On réaffiche le bouton d'ajout si une voiture est déjà sélectionnée
-                    if (selectedCar && bridgeTripWrap && bridgeTripLabel) {
-                        bridgeTripWrap.style.display = 'flex';
-                        bridgeTripLabel.textContent = 'Add another trip';
-                    }
-                }
-            });
+                });
+            }
         }
 
         // ── GESTION DE LA PERSISTANCE VIP (SESSIONSTORAGE) ──
@@ -218,7 +234,9 @@
             return selectedDate.getTime() < (now.getTime() - 120000);
         };
 
-        // Détection dynamique des courses urgentes (< 24h)
+        // Dynamic urgent ride detection (threshold from server config)
+        const minDelayHours = (typeof etbAjax !== 'undefined' && etbAjax.min_delay_hours) ? parseInt(etbAjax.min_delay_hours, 10) : 24;
+
         const checkIsUrgent = () => {
             const rawDate = dateInput ? dateInput.value.trim() : '';
             const rawTime = timeInput ? timeInput.value.trim() : '';
@@ -246,7 +264,7 @@
             const now = new Date();
             const diffHours = (pickupDate.getTime() - now.getTime()) / (1000 * 60 * 60);
 
-            // Retourne true UNIQUEMENT si la course a lieu entre 0h et 24h
+            // Retourne true UNIQUEMENT si la course a lieu entre 0h et minDelayHours
             return diffHours >= 0 && diffHours < 24;
         };
 
@@ -293,6 +311,25 @@
                     // MISE À JOUR AUTOMATIQUE EN DIRECT si la flotte est déjà affichée
                     if (currentMode === 'hourly' && fleetSection && fleetSection.style.display !== 'none') {
                         recalculateHourlyFleet();
+                    }
+                });
+
+                // Navigation clavier (Entrée/Espace = choisir, Flèches = parcourir, Échap = fermer)
+                opt.addEventListener('keydown', function(e) {
+                    const opts = Array.from(durationOptions);
+                    const idx  = opts.indexOf(this);
+                    if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        this.click();
+                    } else if (e.key === 'ArrowDown') {
+                        e.preventDefault();
+                        (opts[idx + 1] || opts[0]).focus();
+                    } else if (e.key === 'ArrowUp') {
+                        e.preventDefault();
+                        (opts[idx - 1] || opts[opts.length - 1]).focus();
+                    } else if (e.key === 'Escape') {
+                        customDurationWrapper.classList.remove('is-open');
+                        durationTrigger.focus();
                     }
                 });
             });
@@ -357,7 +394,9 @@
             if (!dateVal) return '-- --- ----';
             const parts = dateVal.split('-');
             if (parts.length !== 3) return dateVal;
-            const months = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Août', 'Sep', 'Oct', 'Nov', 'Déc'];
+            const months = (typeof etbI18n !== 'undefined' && etbI18n.lang === 'fr')
+                ? ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Août', 'Sep', 'Oct', 'Nov', 'Déc']
+                : ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
             const monthIdx = parseInt(parts[1], 10) - 1;
             return `${parts[2]} ${months[monthIdx] || parts[1]} ${parts[0]}`;
         };
@@ -365,8 +404,32 @@
         // ── ACTUALISATION EN DIRECT DU BANDEAU D'URGENCE (< 24H) ──
         const updateUrgentNoticeLive = () => {
             if (urgentNoticeEl && fleetSection && fleetSection.style.display !== 'none') {
-                urgentNoticeEl.style.display = checkIsUrgent() ? 'block' : 'none';
+                const hideForUponRequest = selectedCar && selectedCar.isUponRequest;
+                urgentNoticeEl.style.display = ( ! hideForUponRequest && checkIsUrgent() ) ? 'block' : 'none';
             }
+
+            // Le libellé du bouton doit suivre l'urgence (même logique qu'à la sélection)
+            if (bookBtnLabel && selectedCar && cartTrips.length === 0) {
+                if (selectedCar.isQuote) {
+                    bookBtnLabel.textContent = etbT('Request Quote');
+                } else if (selectedCar.isUponRequest) {
+                    bookBtnLabel.textContent = etbT('Request Premium');
+                } else if (checkIsUrgent()) {
+                    bookBtnLabel.textContent = etbT('Urgent Booking');
+                } else {
+                    bookBtnLabel.textContent = etbT('Book Trip');
+                }
+            }
+
+            // La barre du bas doit refléter la date/heure courantes
+            const barDateEl = quickRoot.querySelector('#etb-quick-dynamic-bar-content .etb-route-date span');
+            if (barDateEl && selectedCar) {
+                const dVal = dateInput ? dateInput.value.trim() : '';
+                const tVal = timeInput ? timeInput.value.trim() : '';
+                barDateEl.textContent = (typeof formatLuxuryDateText === 'function') ? formatLuxuryDateText(dVal, tVal) : `${dVal} • ${tVal}`;
+            }
+
+            if (selectedCar) updateInquiryLinks();
         };
 
         /// Mise à jour du texte de date et réévaluation instantanée de l'urgence (< 24h)
@@ -451,7 +514,7 @@
             // Ouvrir / Fermer le sélecteur au clic sur la colonne heure
             timeCol.addEventListener('click', function (e) {
                 if (e.target.closest('#etb-quick-time-popup')) return;
-                
+
                 const isCurrentlyOpen = timePopup.classList.contains('is-open');
                 if (isCurrentlyOpen) {
                     timePopup.classList.remove('is-open');
@@ -462,6 +525,25 @@
                     timePopup.style.setProperty('display', 'flex', 'important');
                 }
             });
+
+            // Accessibilité clavier : ouvrir le sélecteur depuis le champ (readonly) au clavier
+            if (timeInput) {
+                timeInput.addEventListener('keydown', function (e) {
+                    if (e.key === 'Enter' || e.key === ' ' || e.key === 'ArrowDown') {
+                        e.preventDefault();
+                        if (!timePopup.classList.contains('is-open')) {
+                            refreshPastHoursRestrictions();
+                            timePopup.classList.add('is-open');
+                            timePopup.style.setProperty('display', 'flex', 'important');
+                        }
+                        const firstOpt = timePopup.querySelector('.etb-hour-opt.active') || timePopup.querySelector('.etb-hour-opt');
+                        if (firstOpt) firstOpt.focus();
+                    } else if (e.key === 'Escape') {
+                        timePopup.classList.remove('is-open');
+                        timePopup.style.setProperty('display', 'none', 'important');
+                    }
+                });
+            }
 
             /// Fonction interne de mise à jour de la valeur 12h formatée et réévaluation de l'urgence en direct
             const update12hTime = () => {
@@ -491,26 +573,52 @@
             });
 
             // 2. Clic sur une Heure (01 à 12)
-            timePopup.querySelectorAll('.etb-hour-opt').forEach(opt => {
+            const hourOpts = timePopup.querySelectorAll('.etb-hour-opt');
+            hourOpts.forEach(opt => {
                 opt.addEventListener('click', function (e) {
                     e.stopPropagation();
-                    timePopup.querySelectorAll('.etb-hour-opt').forEach(o => o.classList.remove('active'));
+                    hourOpts.forEach(o => o.classList.remove('active'));
                     this.classList.add('active');
                     update12hTime();
+                });
+                opt.addEventListener('keydown', function (e) {
+                    const opts = Array.from(hourOpts);
+                    const idx  = opts.indexOf(this);
+                    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); this.click(); }
+                    else if (e.key === 'ArrowDown') { e.preventDefault(); (opts[idx + 1] || opts[0]).focus(); }
+                    else if (e.key === 'ArrowUp') { e.preventDefault(); (opts[idx - 1] || opts[opts.length - 1]).focus(); }
+                    else if (e.key === 'Escape') {
+                        timePopup.classList.remove('is-open');
+                        timePopup.style.setProperty('display', 'none', 'important');
+                        if (timeInput) timeInput.focus();
+                    }
                 });
             });
 
             // 3. Clic sur une Minute (00 à 55) : met à jour et ferme la boîte
-            timePopup.querySelectorAll('.etb-minute-opt').forEach(opt => {
+            const minuteOpts = timePopup.querySelectorAll('.etb-minute-opt');
+            minuteOpts.forEach(opt => {
                 opt.addEventListener('click', function (e) {
                     e.stopPropagation();
-                    timePopup.querySelectorAll('.etb-minute-opt').forEach(o => o.classList.remove('active'));
+                    minuteOpts.forEach(o => o.classList.remove('active'));
                     this.classList.add('active');
                     update12hTime();
 
                     // Fermeture immédiate de la boîte
                     timePopup.classList.remove('is-open');
                     timePopup.style.setProperty('display', 'none', 'important');
+                });
+                opt.addEventListener('keydown', function (e) {
+                    const opts = Array.from(minuteOpts);
+                    const idx  = opts.indexOf(this);
+                    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); this.click(); if (timeInput) timeInput.focus(); }
+                    else if (e.key === 'ArrowDown') { e.preventDefault(); (opts[idx + 1] || opts[0]).focus(); }
+                    else if (e.key === 'ArrowUp') { e.preventDefault(); (opts[idx - 1] || opts[opts.length - 1]).focus(); }
+                    else if (e.key === 'Escape') {
+                        timePopup.classList.remove('is-open');
+                        timePopup.style.setProperty('display', 'none', 'important');
+                        if (timeInput) timeInput.focus();
+                    }
                 });
             });
 
@@ -831,7 +939,7 @@
                 c.classList.remove('selected');
                 const btn = c.querySelector('.etb-quick-select-btn');
                 if (btn) {
-                    btn.textContent = (c.dataset.isQuote === '1' || isQuoteMode) ? 'Request Quote' : 'Select';
+                    btn.textContent = (c.dataset.isQuote === '1' || isQuoteMode) ? etbT('Request Quote') : etbT('Select');
                 }
             });
 
@@ -899,7 +1007,7 @@
                 carCards.forEach(c => {
                     c.classList.remove('selected');
                     const b = c.querySelector('.etb-quick-select-btn');
-                    if (b) b.textContent = 'Select';
+                    if (b) b.textContent = etbT('Select');
 
                     const km = c.querySelector('.etb-quick-km-info');
                     if (km) {
@@ -938,9 +1046,13 @@
                 fleetSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
             }
 
-            // Évaluation immédiate dès l'affichage des prix : < 24h = visible, sinon = masqué
+            // Évaluation immédiate dès l'affichage des prix
             if (urgentNoticeEl) {
                 urgentNoticeEl.style.display = checkIsUrgent() ? 'block' : 'none';
+            }
+            // On s'assure que le bandeau Upon Request est masqué au départ
+            if (uponRequestNoticeEl) {
+                uponRequestNoticeEl.style.display = 'none';
             }
         };
 
@@ -961,82 +1073,110 @@
                 const supHourRate = parseFloat(card.getAttribute('data-sup-hour-rate')) || 0;
                 const kmPerHour   = parseFloat(card.getAttribute('data-km-ph')) || 35;
                 const kmSupRate   = parseFloat(card.getAttribute('data-km-sup-rate')) || 0;
+                
+                // Détection du mode "Upon Request"
+                const isQuoteOnly = card.getAttribute('data-hourly-quote-only') === '1';
 
-                // Règle de durée minimale : masquage si insuffisant
+                // On affiche TOUJOURS le véhicule
+                card.style.display = 'flex';
+                card.classList.remove('etb-hidden');
+
+                // Calcul de la durée effective (minimum package)
+                const effectiveDuration = Math.max(durationHours, minHours);
+                let minimumNoticeHtml = '';
+                
                 if (durationHours < minHours) {
-                    card.style.display = 'none';
-                    card.classList.add('etb-hidden');
-                    card.classList.remove('selected');
-                    return;
-                } else {
-                    card.style.display = 'flex';
-                    card.classList.remove('etb-hidden');
+                    minimumNoticeHtml = `<div style="font-size: 11px; color: var(--etb-brand-ink, #fbac18); font-weight: 700; margin-bottom: 4px;">${etbT('Minimum package %s hours').replace('%s', minHours)}</div>`;
                 }
 
                 let calculatedPrice = 0;
-                let priceDetailHtml = '';
+                let priceDetailHtml = minimumNoticeHtml;
 
-                if (durationHours < 10) {
-                    calculatedPrice = hourlyRate > 0 ? Math.round(durationHours * hourlyRate) : pack10h;
+                // 1. Calcul du prix
+                if (effectiveDuration < 10) {
+                    calculatedPrice = hourlyRate > 0 ? Math.round(effectiveDuration * hourlyRate) : pack10h;
                     if (hourlyRate > 0) {
-                        priceDetailHtml = `Price for ${durationHours} hours <br> <strong>${hourlyRate} ${currency}</strong> per hour`;
+                        priceDetailHtml += `${etbT('Price for %s hours').replace('%s', effectiveDuration)} <br> <strong>${hourlyRate} ${currency}</strong> ${etbT('per hour')}`;
                     }
-                } else if (durationHours === 10) {
-                    calculatedPrice = pack10h > 0 ? pack10h : Math.round(durationHours * hourlyRate);
+                } else if (effectiveDuration === 10) {
+                    calculatedPrice = pack10h > 0 ? pack10h : Math.round(effectiveDuration * hourlyRate);
                     const hourlyEquivalent = pack10h > 0 ? Math.round(pack10h / 10) : hourlyRate;
-                    priceDetailHtml = `Price for 10 hours <br> <strong>${hourlyEquivalent} ${currency}</strong> per hour`;
+                    priceDetailHtml += `${etbT('Price for %s hours').replace('%s', 10)} <br> <strong>${hourlyEquivalent} ${currency}</strong> ${etbT('per hour')}`;
                 } else {
-                    const extraHours = durationHours - 10;
+                    const extraHours = effectiveDuration - 10;
                     const basePack   = pack10h > 0 ? pack10h : Math.round(10 * hourlyRate);
                     calculatedPrice  = Math.round(basePack + (extraHours * supHourRate));
                     if (pack10h > 0 && supHourRate > 0) {
-                        priceDetailHtml = `10h Package + ${extraHours} extra hour(s) <br> <strong>${supHourRate} ${currency}</strong> per extra hour`;
+                        priceDetailHtml += `${etbT('10h Package')} + ${extraHours} ${etbT('extra hour(s)')} <br> <strong>${supHourRate} ${currency}</strong> ${etbT('per extra hour')}`;
                     }
                 }
 
-                // Quota kilométrique
-                const totalKm = Math.round(durationHours * kmPerHour);
+                // 2. Quota kilométrique
+                const totalKm = Math.round(effectiveDuration * kmPerHour);
                 const kmInfoEl = card.querySelector('.etb-quick-km-info');
                 if (kmInfoEl) {
-                    // 💡 NOUVEAU FORMAT : Total | Quota par heure (Tarif sup)
-                    let kmText = `${totalKm} km included | ${kmPerHour} km per H`;
+                    let kmText = etbT('%s km included | %s km per H').replace('%s', totalKm).replace('%s', kmPerHour);
                     if (kmSupRate > 0) {
-                        kmText += ` (${kmSupRate.toFixed(2)} €/km sup.)`;
+                        kmText += ` (${kmSupRate.toFixed(2)} ${etbT('€/km sup.')})`;
                     }
                     kmInfoEl.textContent = kmText;
-                    kmInfoEl.classList.add('is-visible'); // <-- Activation via la classe CSS
+                    kmInfoEl.classList.add('is-visible');
                 }
 
-                // 1. Régénération complète du prix chiffré avec "All inclusive" à côté
+                // 3. Affichage conditionnel (Normal vs Upon Request)
                 const priceBox = card.querySelector('.etb-quick-price-display');
-                if (priceBox) {
-                    priceBox.innerHTML = '<span class="etb-quick-amount">' + calculatedPrice + '</span> <span class="etb-quick-currency">' + currency + '</span> <span class="etb-quick-all-inclusive">All inclusive</span>';
-                }
-
-                // 2. Mise à jour de la ligne d'explication horaire
                 const detailEl = card.querySelector('.etb-quick-price-detail');
-                if (detailEl) {
-                    if (priceDetailHtml) {
-                        detailEl.innerHTML = priceDetailHtml;
-                        detailEl.style.display = 'block';
-                    } else {
-                        detailEl.style.display = 'none';
-                    }
-                }
-
-
-
-
-                // 3. Remise du bouton sur Select
                 const selBtn = card.querySelector('.etb-quick-select-btn');
-                if (selBtn) {
-                    selBtn.textContent = 'Select';
+                const allIncl = card.querySelector('.etb-quick-all-inclusive');
+
+                if (isQuoteOnly) {
+                    // --- MODE UPON REQUEST (Prix visible + Demande de validation) ---
+                    card.dataset.calculatedPrice = calculatedPrice > 0 ? calculatedPrice : 'Custom Quote';
+                    card.dataset.isQuote = '0';       // On n'est PAS un Custom Quote
+                    card.dataset.isUponRequest = '1'; // NOUVEAU FLAG
+
+                    if (priceBox) {
+                        let priceHtml = '';
+                        if (calculatedPrice > 0) {
+                            priceHtml = `<span class="etb-quick-amount">${calculatedPrice}</span> <span class="etb-quick-currency">${currency}</span>`;
+                        }
+                        priceHtml += ` <span class="etb-quick-quote-badge" style="vertical-align: middle;">${etbT('Upon Request')}</span>`;
+                        priceBox.innerHTML = priceHtml;
+                    }
+
+                    if (detailEl) {
+                        // 💡 CORRECTION : On garde le message "Minimum package" et on ajoute l'info Upon Request
+                        detailEl.innerHTML = minimumNoticeHtml + etbT('Price is indicative. Select to confirm availability & final quote.');
+                        detailEl.style.display = 'block';
+                    }
+
+                    if (selBtn) selBtn.textContent = etbT('Request Quote');
+                    if (allIncl) allIncl.style.display = 'none';
+                } else {
+                    // --- MODE NORMAL ---
+                    card.dataset.calculatedPrice = calculatedPrice;
+                    card.dataset.isQuote = '0';
+
+                    if (priceBox) {
+                        priceBox.classList.add('is-upon-request');
+                        priceBox.innerHTML = '<span class="etb-quick-amount">' + calculatedPrice + '</span> <span class="etb-quick-currency">' + currency + '</span> <span class="etb-quick-all-inclusive">' + etbT('All inclusive') + '</span>';
+                        
+
+                    }
+
+                    if (detailEl) {
+                        if (priceDetailHtml) {
+                            detailEl.innerHTML = priceDetailHtml;
+                            detailEl.style.display = 'block';
+                        } else {
+                            detailEl.style.display = 'none';
+                        }
+                    }
+
+                    if (selBtn) selBtn.textContent = etbT('Select');
+                    if (allIncl) allIncl.style.display = 'flex';
                 }
 
-                card.dataset.calculatedPrice = calculatedPrice;
-                card.dataset.isQuote = '0';
-                card.style.display = 'flex';
-                card.classList.remove('etb-hidden');
                 availableCarsCount++;
             });
 
@@ -1048,9 +1188,9 @@
                     selectedCar.price   = updatedPrice;
                     selectedCar.isQuote = false;
                     if (selectedTotEl) selectedTotEl.textContent = updatedPrice + ' ' + currency;
-                    if (bookBtnLabel) bookBtnLabel.textContent = 'Book this Trip';
+                    if (bookBtnLabel) bookBtnLabel.textContent = etbT('Book this Trip');
                     const activeBtn = activeCard.querySelector('.etb-quick-select-btn');
-                    if (activeBtn) activeBtn.textContent = '✓ Selected';
+                    if (activeBtn) activeBtn.textContent = etbT('✓ Selected');
                 } else {
                     selectedCar = null;
                     if (bookingBar) bookingBar.classList.remove('is-visible');
@@ -1130,9 +1270,20 @@
                     pricingData.forEach(item => {
                         if (!item || !item.vehicle_class || !item.vehicle_class.id || !item.prices || item.prices.length === 0) return;
                         const limoUuid = String(item.vehicle_class.id).trim().toLowerCase();
-                        const targetCard = document.getElementById('limo-car-' + limoUuid) 
+                        let targetCard = document.getElementById('limo-car-' + limoUuid) 
                                       || document.getElementById('limo-car-' + item.vehicle_class.id)
                                       || quickRoot.querySelector('[data-limo-class-id="' + limoUuid + '"]');
+                        
+                        // 💡 SÉCURITÉ : Si on ne trouve pas, on cherche manuellement parmi toutes les cartes
+                        if (!targetCard) {
+                            const allCards = quickRoot.querySelectorAll('.etb-quick-car-item');
+                            for (let c of allCards) {
+                                if (c.getAttribute('data-limo-class-id') === limoUuid || c.id === 'limo-car-' + limoUuid) {
+                                    targetCard = c;
+                                    break;
+                                }
+                            }
+                        }
 
                         if (targetCard) {
                             const limoPrice = Math.round(item.prices[0].price);
@@ -1146,13 +1297,13 @@
                                 targetCard.dataset.isQuote = '0';
 
                                 if (priceBox) {
-                                    priceBox.innerHTML = `<span class="etb-quick-amount">${limoPrice}</span> <span class="etb-quick-currency">${currency}</span> <span class="etb-quick-all-inclusive">All inclusive</span>`;
+                                    priceBox.innerHTML = `<span class="etb-quick-amount">${limoPrice}</span> <span class="etb-quick-currency">${currency}</span> <span class="etb-quick-all-inclusive">${etbT('All inclusive')}</span>`;
                                 }
                                 if (detailBox) {
                                     detailBox.style.display = 'none';
                                     detailBox.innerHTML = '';
                                 }
-                                if (selBtn) selBtn.textContent = 'Select';
+                                if (selBtn) selBtn.textContent = etbT('Select');
                                 if (allInclEl) allInclEl.style.display = 'flex';
 
                                 targetCard.style.display = 'flex';
@@ -1177,6 +1328,7 @@
                     c.style.pointerEvents = 'auto';
                     const priceBox = c.querySelector('.etb-quick-price-display');
                     if (priceBox) {
+                        priceBox.classList.add('is-upon-request');
                         priceBox.style.opacity = '1';
                         priceBox.style.filter = 'none';
                     }
@@ -1193,7 +1345,7 @@
 
             // 1. Afficher le bandeau d'information VIP
             if (quoteNoticeEl) {
-                quoteNoticeEl.innerHTML = '<span class="dashicons dashicons-info-outline"></span> <div><strong>Custom Itinerary / Long Distance:</strong> This specific route requires a personalized quotation from our dispatch team. Please select your preferred vehicle below to submit a quote request.</div>';
+                quoteNoticeEl.innerHTML = '<span class="dashicons dashicons-info-outline"></span> <div><strong>' + etbT('Custom Itinerary / Long Distance:') + '</strong> ' + etbT('This specific route requires a personalized quotation from our dispatch team. Please select your preferred vehicle below to submit a quote request.') + '</div>';
                 quoteNoticeEl.classList.add('is-visible');
             }
 
@@ -1204,12 +1356,12 @@
 
                 var priceBox = c.querySelector('.etb-quick-price-display');
                 if (priceBox) {
-                    priceBox.innerHTML = '<span class="etb-quick-quote-badge">Upon Request</span>';
+                    priceBox.innerHTML = '<span class="etb-quick-quote-badge">' + etbT('Upon Request') + '</span>';
                 }
 
                 var detailBox = c.querySelector('.etb-quick-price-detail');
                 if (detailBox) {
-                    detailBox.innerHTML = 'Select to ask a custom quote';
+                    detailBox.innerHTML = etbT('Select to ask a custom quote');
                     detailBox.style.display = 'block';
                 }
 
@@ -1219,15 +1371,10 @@
                     allIncl.style.display = 'none';
                 }
 
-                var kmBox = c.querySelector('.etb-quick-km-info');
-                if (kmBox) {
-                    kmBox.textContent = '';
-                    kmBox.classList.remove('is-visible');
-                }
 
                 var selBtn = c.querySelector('.etb-quick-select-btn');
                 if (selBtn) {
-                    selBtn.textContent = 'Request Quote';
+                    selBtn.textContent = etbT('Request Quote');
                 }
 
                 c.style.display = 'flex';
@@ -1255,12 +1402,12 @@
                 const dateVal    = dateInput ? dateInput.value.trim() : '';
                 const timeVal    = timeInput ? timeInput.value.trim() : '';
 
-               if (!pickupVal) return showError('Please enter a pickup location.');
-                if (currentMode === 'transfer' && !dropoffVal) return showError('Please enter a drop-off location.');
-                if (!dateVal) return showError('Please select a date.');
-                if (!timeVal || timeVal === '-- : --') return showError('Please select a pickup time.');
+               if (!pickupVal) return showError(etbT('Please enter a pickup location.'));
+                if (currentMode === 'transfer' && !dropoffVal) return showError(etbT('Please enter a drop-off location.'));
+                if (!dateVal) return showError(etbT('Please select a date.'));
+                if (!timeVal || timeVal === '-- : --') return showError(etbT('Please select a pickup time.'));
                 if (isDateTimeInPast(dateVal, timeVal)) {
-                    return showError('The pickup time cannot be in the past. Please select a future time.');
+                    return showError(etbT('The pickup time cannot be in the past. Please select a future time.'));
                 }
 
                 // ─────────────────────────────────────────────────────────────
@@ -1275,7 +1422,7 @@
                     if (count > 0) {
                         showFleetSection();
                     } else {
-                        showError('No vehicles available for this duration (minimum hours not met).');
+                        showError(etbT('No vehicles available for this duration (minimum hours not met).'));
                     }
                     return;
                 }
@@ -1289,13 +1436,13 @@
                 const toLng   = dropoffLngEl ? dropoffLngEl.value : '';
 
                 if (!fromLat || !fromLng || !toLat || !toLng) {
-                    return showError('Please select exact addresses from the suggested list to calculate the route.');
+                    return showError(etbT('Please select exact addresses from the suggested list to calculate the route.'));
                 }
 
                 const originalBtnText = getPriceBtn.innerHTML;
                 getPriceBtn.disabled = true;
                 getPriceBtn.classList.add('etb-loading-glow'); // Active le faisceau lumineux tournant
-                getPriceBtn.innerHTML = '<span>Calculating...</span>';
+                getPriceBtn.innerHTML = '<span>' + etbT('Calculating...') + '</span>';
 
                 const formData = new FormData();
                 formData.append('action', 'etb_quick_pricing');
@@ -1319,6 +1466,7 @@
                         var pricingData = res.data.pricing_data;
                         var availableCarsCount = 0;
 
+                        // 1. On cache toutes les cartes et on nettoie
                         carCards.forEach(c => {
                             c.style.display = 'none';
                             c.classList.remove('selected');
@@ -1329,59 +1477,98 @@
                             }
                         });
 
+                        // 2. On boucle sur les résultats de LimoExpress (LA BOUCLE MANQUANTE)
                         pricingData.forEach(item => {
                             if (!item || !item.vehicle_class || !item.vehicle_class.id || !item.prices || item.prices.length === 0) return;
+                            
+                            // 💡 REPÈRE B : Détection sécurisée de la carte
                             var limoUuid = String(item.vehicle_class.id).trim().toLowerCase();
                             var targetCard = document.getElementById('limo-car-' + limoUuid) 
                                           || document.getElementById('limo-car-' + item.vehicle_class.id)
                                           || quickRoot.querySelector('[data-limo-class-id="' + limoUuid + '"]');
+                            
+                            // Sécurité si l'ID est introuvable par les sélecteurs classiques
+                            if (!targetCard) {
+                                var allCards = quickRoot.querySelectorAll('.etb-quick-car-item');
+                                for (var c of allCards) {
+                                    if (c.getAttribute('data-limo-class-id') === limoUuid || c.id === 'limo-car-' + limoUuid) {
+                                        targetCard = c;
+                                        break;
+                                    }
+                                }
+                            }
 
                             if (targetCard) {
                                 var limoPrice = Math.round(item.prices[0].price);
-                               var allInclEl = targetCard.querySelector('.etb-quick-all-inclusive');
+                                var allInclEl = targetCard.querySelector('.etb-quick-all-inclusive');
                                 var selBtn    = targetCard.querySelector('.etb-quick-select-btn');
 
-                                // Si LimoExpress renvoie 0 € -> CUSTOM QUOTE
-                                if (limoPrice <= 0) {
-                                    targetCard.dataset.calculatedPrice = 'Custom Quote';
-                                    targetCard.dataset.isQuote = '1';
+                                // Vérification du forçage Upon Request
+                                var isTransferQuoteOnly = targetCard.getAttribute('data-transfer-quote-only') === '1';
+
+                                if (isTransferQuoteOnly) {
+                                    // --- MODE UPON REQUEST ---
+                                    targetCard.dataset.calculatedPrice = limoPrice > 0 ? limoPrice : 'Custom Quote';
+                                    targetCard.dataset.isQuote = '0';
+                                    targetCard.dataset.isUponRequest = '1';
 
                                     var priceBox = targetCard.querySelector('.etb-quick-price-display');
                                     if (priceBox) {
-                                        priceBox.innerHTML = '<span class="etb-quick-quote-badge">Upon Request</span>';
+                                        priceBox.classList.add('is-upon-request');
+                                        var priceHtml = '';
+                                        if (limoPrice > 0) {
+                                            priceHtml = '<span class="etb-quick-amount">' + limoPrice + '</span> <span class="etb-quick-currency">' + currency + '</span>';
+                                        }
+                                        priceHtml += ' <span class="etb-quick-quote-badge" style="vertical-align: middle; margin-left: 6px;">' + etbT('Upon Request') + '</span>';
+                                        priceBox.innerHTML = priceHtml;
                                     }
 
                                     var priceDetailEl = targetCard.querySelector('.etb-quick-price-detail');
                                     if (priceDetailEl) {
-                                        priceDetailEl.innerHTML = 'Select to ask a custom quote';
+                                        priceDetailEl.innerHTML = etbT('Price is indicative. Select to confirm availability & final quote.');
                                         priceDetailEl.style.display = 'block';
                                     }
 
                                     if (allInclEl) allInclEl.style.display = 'none';
-                                    if (selBtn) selBtn.textContent = 'Request Quote';
-                                } else {
-                                    // Tarif chiffré officiel LimoExpress
-                                    targetCard.dataset.calculatedPrice = limoPrice;
-                                    targetCard.dataset.isQuote = '0';
+                                    if (selBtn) selBtn.textContent = etbT('Request Quote');
+
+                                } else if (limoPrice <= 0) {
+                                    // --- CUSTOM QUOTE (Hors zone) ---
+                                    targetCard.dataset.calculatedPrice = 'Custom Quote';
+                                    targetCard.dataset.isQuote = '1';
+                                    targetCard.dataset.isUponRequest = '0';
 
                                     var priceBox = targetCard.querySelector('.etb-quick-price-display');
                                     if (priceBox) {
-                                        priceBox.innerHTML = '<span class="etb-quick-amount">' + limoPrice + '</span> <span class="etb-quick-currency">' + currency + '</span> <span class="etb-quick-all-inclusive">All inclusive</span>';
+                                        priceBox.classList.add('is-upon-request');
+                                        priceBox.innerHTML = '<span class="etb-quick-quote-badge">' + etbT('Upon Request') + '</span>';
                                     }
+                                    var priceDetailEl = targetCard.querySelector('.etb-quick-price-detail');
+                                    if (priceDetailEl) {
+                                        priceDetailEl.innerHTML = etbT('Select to ask a custom quote');
+                                        priceDetailEl.style.display = 'block';
+                                    }
+                                    if (allInclEl) allInclEl.style.display = 'none';
+                                    if (selBtn) selBtn.textContent = etbT('Request Quote');
 
+                                } else {
+                                    // --- NORMAL PRICE ---
+                                    targetCard.dataset.calculatedPrice = limoPrice;
+                                    targetCard.dataset.isQuote = '0';
+                                    targetCard.dataset.isUponRequest = '0';
+
+                                    var priceBox = targetCard.querySelector('.etb-quick-price-display');
+                                    if (priceBox) {
+                                        priceBox.classList.remove('is-upon-request');
+                                        priceBox.innerHTML = '<span class="etb-quick-amount">' + limoPrice + '</span> <span class="etb-quick-currency">' + currency + '</span> <span class="etb-quick-all-inclusive">' + etbT('All inclusive') + '</span>';
+                                    }
                                     var priceDetailEl = targetCard.querySelector('.etb-quick-price-detail');
                                     if (priceDetailEl) {
                                         priceDetailEl.style.display = 'none';
                                         priceDetailEl.innerHTML = '';
                                     }
-                                    if (selBtn) selBtn.textContent = 'Select';
-                                
-                                }
-
-                                var kmInfoEl = targetCard.querySelector('.etb-quick-km-info');
-                                if (kmInfoEl) { 
-                                    kmInfoEl.textContent = ''; 
-                                    kmInfoEl.classList.remove('is-visible'); 
+                                    if (selBtn) selBtn.textContent = etbT('Select');
+                                    if (allInclEl) allInclEl.style.display = 'flex';
                                 }
 
                                 targetCard.style.display = 'flex';
@@ -1437,7 +1624,9 @@
                 if (!dateStr) return '—';
                 const parts = dateStr.split('-');
                 if (parts.length !== 3) return dateStr;
-                const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                const months = (typeof etbI18n !== 'undefined' && etbI18n.lang === 'fr')
+                    ? ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Août', 'Sep', 'Oct', 'Nov', 'Déc']
+                    : ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
                 const mIdx = parseInt(parts[1], 10) - 1;
                 return `${parseInt(parts[2], 10)} ${months[mIdx]} ${parts[0]}`;
             };
@@ -1447,19 +1636,21 @@
                 // Message pour le véhicule actuellement sélectionné
                 const pVal      = pickupInput ? pickupInput.value.trim() : '—';
                 const isHourly  = (currentMode === 'hourly');
-                const dVal      = isHourly ? `By the hour (${durationSelect ? durationSelect.value : 4}h)` : (dropoffInput ? dropoffInput.value.trim() : '—');
+                const dVal      = isHourly ? `${etbT('By the hour')} (${durationSelect ? durationSelect.value : 4}h)` : (dropoffInput ? dropoffInput.value.trim() : '—');
                 const rawDate   = dateInput ? dateInput.value.trim() : '';
                 const tmVal     = timeInput ? timeInput.value.trim() : '';
-                const rateText  = selectedCar.isQuote ? 'Custom Quote' : `${selectedCar.price} ${currency}`;
+                const rateText  = selectedCar.isQuote ? etbT('Custom Quote') : `${selectedCar.price} ${currency}`;
 
                 // --- DÉTECTION DE L'URGENCE POUR LE MESSAGE ---
                 const isUrgent     = checkIsUrgent();
                 const paxText      = selectedCar.maxPax ? ` ${selectedCar.maxPax} pax` : '';
 
                 // 1. Préfixe WhatsApp (Gras natif avec astérisques)
-                const urgentPrefixWa = isUrgent ? '*🔴 Urgent Booking 🔴*\n\n' : '';
+                const urgentPrefixWa = isUrgent ? '*' + etbT('🔴 Urgent Booking 🔴') + '*\n\n' : '';
                 // 2. Préfixe Email (Caractères Unicode Gras car mailto ne gère pas le HTML)
-                const urgentPrefixMail = isUrgent ? '🔴 𝗨𝗥𝗚𝗘𝗡𝗧 𝗕𝗢𝗢𝗞𝗜𝗡𝗚 🔴\n\n' : '';
+                const urgentPrefixMail = isUrgent
+                    ? ((typeof etbI18n !== 'undefined' && etbI18n.lang === 'fr') ? '🔴 RÉSERVATION URGENTE 🔴\n\n' : '🔴 𝗨𝗥𝗚𝗘𝗡𝗧 𝗕𝗢𝗢𝗞𝗜𝗡𝗚 🔴\n\n')
+                    : '';
 
                 // On prépare le corps du message commun
                 const formattedDate = formatDateToText(rawDate);
@@ -1470,20 +1661,23 @@
                     const durationNum = parseFloat(durationSelect ? durationSelect.value : 4);
                     if (durationNum > 0) {
                         const perHourRate = Math.round(parseFloat(selectedCar.price) / durationNum);
-                        perHourHtml = `• Per Hour: ${perHourRate} ${currency}\n`;
+                        perHourHtml = `• ${etbT('Per Hour')}: ${perHourRate} ${currency}\n`;
                     }
                 }
 
-                const baseMessage = `Hello team ${waveEmoji},\n\n`
-                    + `I would like to inquire about booking a transfer:\n\n`
+                const baseMessage = etbT('Hello team %s,').replace('%s', waveEmoji) + '\n\n'
+                    + etbT('I would like to inquire about booking a transfer:') + '\n\n'
                     + `*${selectedCar.name}${paxText}*\n` // <-- Gras actif pour WhatsApp
-                    + `• Pickup: ${pVal}\n`
-                    + `• Destination: ${dVal}\n`
-                    + `• Date: ${formattedDate}\n`
-                    + `• Time: ${tmVal}\n`
-                    + `• Rate: ${rateText}\n`
+                    + `\n`
+                    + `• ${etbT('Pickup')}: ${pVal}\n`
+                    + `• ${etbT('Destination')}: ${dVal}\n`
+                    + `\n`
+                    + `• ${etbT('Date')}: ${formattedDate}\n`
+                    + `• ${etbT('Time')}: ${tmVal}\n`
+                    + `\n`
+                    + `• ${etbT('Rate')}: ${rateText}\n`
                     + `${perHourHtml}`                   // <-- Ajout de la ligne Per Hour
-                    + `\nThank you!`;
+                    + '\n' + etbT('Thank you!');
 
                 // On génère les deux versions
                 message      = urgentPrefixWa + baseMessage;
@@ -1491,25 +1685,25 @@
                 
             } else if (cartTrips.length > 0) {
                 // Message groupé pour l'ensemble du panier
-                const cartBaseMessage = `Hello team ${waveEmoji},\n\n`
-                    + `I would like to inquire about my scheduled itinerary (${cartTrips.length} transfers):\n\n`;
+                const cartBaseMessage = etbT('Hello team %s,').replace('%s', waveEmoji) + '\n\n'
+                    + etbT('I would like to inquire about my scheduled itinerary (%s transfers):').replace('%s', cartTrips.length) + '\n\n';
 
                 let cartBody = '';
                 let totalSum = 0;
                 let hasQuote = false;
 
                 cartTrips.forEach((t, i) => {
-                    const rText = t.isQuote ? 'Quote' : `${t.price} ${currency}`;
+                    const rText = t.isQuote ? etbT('Quote') : `${t.price} ${currency}`;
                     if (t.isQuote) hasQuote = true; else totalSum += parseFloat(t.price) || 0;
-                                        cartBody += `*Transfer #${i + 1} (${t.vehicle_name})*\n`
-                        + `  • Route: ${t.pickup} ➔ ${t.dropoff}\n`
-                        + `  • Date: ${formatDateToText(t.date)}\n`
-                        + `  • Time: ${t.time}\n`
-                        + `  • Rate: ${rText}\n\n`;
+                                        cartBody += `*${etbT('Transfer #%s').replace('%s', i + 1)} (${t.vehicle_name})*\n`
+                        + `  • ${etbT('Route')}: ${t.pickup} ➔ ${t.dropoff}\n`
+                        + `  • ${etbT('Date')}: ${formatDateToText(t.date)}\n`
+                        + `  • ${etbT('Time')}: ${t.time}\n`
+                        + `  • ${etbT('Rate')}: ${rText}\n\n`;
                 });
 
-                const finalSumText = hasQuote ? 'Custom Quote' : `${totalSum.toFixed(0)} ${currency}`;
-                cartBody += `*Estimated Total: ${finalSumText}*\n\nThank you!`;
+                const finalSumText = hasQuote ? etbT('Custom Quote') : `${totalSum.toFixed(0)} ${currency}`;
+                cartBody += `*${etbT('Estimated Total')}: ${finalSumText}*\n\n` + etbT('Thank you!');
 
                 message      = cartBaseMessage + cartBody;
                 emailMessage = cartBaseMessage + cartBody; // Pas d'urgence pour le panier
@@ -1529,7 +1723,7 @@
             // 2. Mise à jour du lien Email (mailto)
             if (emailInquiryBtn) {
                 const isUrgentSubject = checkIsUrgent();
-                const subjectPrefix = isUrgentSubject ? '🚨 URGENT (< 24H) - VIP Transfer Inquiry' : '[Inquiry] VIP Transfer Booking';
+                const subjectPrefix = isUrgentSubject ? etbT('🚨 URGENT (< 24H) - VIP Transfer Inquiry') : etbT('[Inquiry] VIP Transfer Booking');
                 
                 const emailSubject = encodeURIComponent(subjectPrefix);
                 const emailBody    = encodeURIComponent(emailMessage.replace(/\*/g, ''));
@@ -1541,13 +1735,20 @@
         carCards.forEach(card => {
             card.addEventListener('click', function () {
                 const isCarQuote = (this.dataset.isQuote === '1' || isQuoteMode);
+                const isUponRequestCar = this.dataset.isUponRequest === '1'; // <-- NOUVEAU
 
                 // Désélection si on reclique sur la même carte
                 if (this.classList.contains('selected')) {
                     this.classList.remove('selected');
                     selectedCar = null;
+                    
+                    // On cache le bandeau Upon Request si on désélectionne
+                    if (uponRequestNoticeEl) uponRequestNoticeEl.style.display = 'none';
+                    // On réévalue le bandeau urgent
+                    if (urgentNoticeEl) urgentNoticeEl.style.display = checkIsUrgent() ? 'block' : 'none';
+
                     const btn = this.querySelector('.etb-quick-select-btn');
-                    if (btn) btn.textContent = isCarQuote ? 'Request Quote' : 'Select';
+                    if (btn) btn.textContent = isCarQuote ? etbT('Request Quote') : etbT('Select');
 
                     if (cartTrips.length > 0) {
                         renderTripsCart();
@@ -1562,15 +1763,25 @@
                 carCards.forEach(c => {
                     c.classList.remove('selected');
                     const b = c.querySelector('.etb-quick-select-btn');
-                    if (b) b.textContent = (c.dataset.isQuote === '1' || isQuoteMode) ? 'Request Quote' : 'Select';
+                    if (b) b.textContent = (c.dataset.isQuote === '1' || isQuoteMode) ? etbT('Request Quote') : etbT('Select');
                 });
+
+
+                 // 💡 GESTION DES BANDEAUX AU CLIC
+                if (isUponRequestCar) {
+                    if (uponRequestNoticeEl) uponRequestNoticeEl.style.display = 'block';
+                    if (urgentNoticeEl) urgentNoticeEl.style.display = 'none'; // On cache l'urgent pour ne pas surcharger
+                } else {
+                    if (uponRequestNoticeEl) uponRequestNoticeEl.style.display = 'none';
+                    if (urgentNoticeEl) urgentNoticeEl.style.display = checkIsUrgent() ? 'block' : 'none';
+                }
 
                 // Illumine la carte cliquée
                 this.classList.add('selected');
                 const activeBtn = this.querySelector('.etb-quick-select-btn');
-                if (activeBtn) activeBtn.textContent = 'Selected';
+                if (activeBtn) activeBtn.textContent = etbT('Selected');
 
-                const carName    = this.querySelector('h4')?.textContent.trim() || 'Vehicle';
+                const carName    = this.querySelector('h4')?.textContent.trim() || etbT('Vehicle');
                 const carPrice   = this.dataset.calculatedPrice || '0';
                 const carImgSrc  = this.querySelector('.etb-img-static')?.src || '';
                 const maxPax     = this.dataset.maxPax || '1';
@@ -1583,6 +1794,7 @@
                     name: carName,
                     price: carPrice,
                     isQuote: isCarQuote,
+                    isUponRequest: this.dataset.isUponRequest === '1', // <-- AJOUTER CETTE LIGN
                     img: carImgSrc,
                     maxPax: maxPax,
                     maxBag: maxBag
@@ -1591,8 +1803,8 @@
                 // 1. Mise à jour de la barre du bas avec ce véhicule précis ET les détails de l'itinéraire
                 const dynamicContentEl = quickRoot.querySelector('#etb-quick-dynamic-bar-content');
                 if (dynamicContentEl) {
-                    const priceHtml = isCarQuote 
-                        ? '<span style="color: var(--etb-accent-gold, #fbac18); font-size: 20px; font-weight: 800;">Custom Quote</span>' 
+                    const priceHtml = isCarQuote
+                        ? '<span style="color: var(--etb-accent-gold, #fbac18); font-size: 20px; font-weight: 800;">' + etbT('Custom Quote') + '</span>'
                         : `<span style="color: var(--etb-accent-gold, #fbac18); font-size: 26px; font-weight: 900;">${carPrice} <span style="font-size: 18px;">${currency}</span></span>`;
 
                     // Récupération des informations de trajet en direct
@@ -1610,28 +1822,28 @@
                     const routeHtml = (currentMode === 'hourly')
                         ? `<div class="etb-route-line">
                                <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="var(--etb-accent-gold, #fbac18)" stroke-width="2" style="flex-shrink:0;"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
-                               <strong style="color: #ffffff; font-weight: 600;">By the hour (${durVal}h)</strong>
+                               <strong style="color: var(--etb-text-primary, #ffffff); font-weight: 600;">${etbT('By the hour')} (${durVal}h)</strong>
                            </div>
                            <div class="etb-route-line">
                               <span class="etb-bar-bullet etb-bar-bullet-pickup"></span>
-                               <span>${pickupVal || '—'}</span>
+                               <span>${escapeHtml(pickupVal) || '—'}</span>
                            </div>`
                         : `<div class="etb-route-line">
                                <span class="etb-bar-bullet etb-bar-bullet-pickup"></span>
-                               <span>${pickupVal || '—'}</span>
+                               <span>${escapeHtml(pickupVal) || '—'}</span>
                            </div>
                            <div class="etb-route-line">
                                <span class="etb-bar-bullet etb-bar-bullet-dropoff"></span>
-                               <span>${dropoffVal || '—'}</span>
+                               <span>${escapeHtml(dropoffVal) || '—'}</span>
                            </div>`;
 
                     dynamicContentEl.innerHTML = `
                         <div class="etb-bar-col1" style="display: flex; flex-direction: column; justify-content: center; flex-shrink: 0;">
                             <div class="etb-bar-v-title" style="white-space: nowrap;">
-                                <strong style="color: var(--etb-text-primary, #ffffff); font-size: 15px;">${carName}</strong>
+                                <strong style="color: var(--etb-text-primary, #ffffff); font-size: 15px;">${escapeHtml(carName)}</strong>
                             </div>
                             <div class="etb-bar-pax-bag" style="color: var(--etb-text-secondary, #94a3b8); font-size: 11.5px; margin-top: 3px;">
-                                <span>${maxPax} Pax • ${maxBag} Luggage</span>
+                                <span>${escapeHtml(maxPax)} ${etbT('Pax')} • ${escapeHtml(maxBag)} ${etbT('Luggage')}</span>
                             </div>
                         </div>
 
@@ -1647,7 +1859,7 @@
                         <div class="etb-bar-col2" style="display: flex; flex-direction: column; justify-content: center;">
                             <div class="etb-bar-price">${priceHtml}</div>
                             <div class="etb-bar-sub" style="color: var(--etb-text-secondary, #94a3b8); font-size: 11px; text-transform: uppercase;">
-                                ${currentMode === 'hourly' ? 'Hourly Charter' : 'All Inclusive (Fixed rate)'}
+                                ${currentMode === 'hourly' ? etbT('Hourly Charter') : etbT('All Inclusive (Fixed rate)')}
                             </div>
                         </div>
                     `;
@@ -1657,7 +1869,7 @@
                 if (bridgeTripWrap && bridgeTripLabel) {
                     if (isMultiBookingEnabled) {
                         bridgeTripWrap.style.display = 'flex';
-                        bridgeTripLabel.textContent = (cartTrips.length === 0) ? 'Add another trip' : 'Add this trip';
+                        bridgeTripLabel.textContent = (cartTrips.length === 0) ? etbT('Add another trip') : etbT('Add this trip');
                     } else {
                         bridgeTripWrap.style.display = 'none';
                     }
@@ -1665,17 +1877,20 @@
                     if (bookBtnLabel) {
                         if (!isMultiBookingEnabled || cartTrips.length === 0) {
                             // Mono-trajet pur : le bouton principal engage ce véhicule unique
+                            // 💡 NOUVEAU : On vérifie aussi isUponRequest
                             if (isCarQuote) {
-                                bookBtnLabel.textContent = 'Request';
+                                bookBtnLabel.textContent = etbT('Request Quote');
+                            } else if (isUponRequestCar) {
+                                bookBtnLabel.textContent = etbT('Request Premium');
                             } else if (checkIsUrgent()) {
-                                bookBtnLabel.textContent = 'Urgent Booking'; // <-- NOUVEAU LABEL ICI
+                                bookBtnLabel.textContent = etbT('Urgent Booking');
                             } else {
-                                bookBtnLabel.textContent = 'Book Trip';
+                                bookBtnLabel.textContent = etbT('Book Trip');
                             }
                         } else {
                             // Panier rempli : le bouton principal ne concerne QUE le panier existant
-                            const hasQuoteInCart = cartTrips.some(t => t.isQuote);
-                            bookBtnLabel.textContent = hasQuoteInCart ? `Request (${cartTrips.length} Transfers)` : `Checkout (${cartTrips.length} Transfers)`;
+                            const hasQuoteInCart = cartTrips.some(t => t.isQuote || t.isUponRequest);
+                            bookBtnLabel.textContent = hasQuoteInCart ? etbT('Request (%s Transfers)').replace('%s', cartTrips.length) : etbT('Checkout (%s Transfers)').replace('%s', cartTrips.length);
                         }
                     }
                 }
@@ -1735,16 +1950,20 @@
                     const dateVal    = dateInput ? dateInput.value.trim() : '';
                     const timeVal    = timeInput ? timeInput.value.trim() : '';
 
-                    if (!pickupVal) return showError('Please enter a pickup location.');
-                    if (currentMode === 'transfer' && !dropoffVal) return showError('Please enter a drop-off location.');
-                    if (!dateVal) return showError('Please select a date.');
-                    if (!timeVal || timeVal === '-- : --') return showError('Please select a pickup time.');
+                    if (!pickupVal) return showError(etbT('Please enter a pickup location.'));
+                    if (currentMode === 'transfer' && !dropoffVal) return showError(etbT('Please enter a drop-off location.'));
+                    if (!dateVal) return showError(etbT('Please select a date.'));
+                    if (!timeVal || timeVal === '-- : --') return showError(etbT('Please select a pickup time.'));
 
                     cartTrips.push({
                         id: 'trip_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
                         mode: currentMode,
                         pickup: pickupVal,
                         dropoff: dropoffVal,
+                        pickup_lat: pickupLatEl ? pickupLatEl.value : '',
+                        pickup_lng: pickupLngEl ? pickupLngEl.value : '',
+                        dropoff_lat: dropoffLatEl ? dropoffLatEl.value : '',
+                        dropoff_lng: dropoffLngEl ? dropoffLngEl.value : '',
                         duration: durVal,
                         date: dateVal,
                         time: timeVal,
@@ -1753,6 +1972,8 @@
                         vehicle_img: selectedCar.img || '',
                         price: selectedCar.price,
                         isQuote: selectedCar.isQuote,
+                        isUponRequest: selectedCar.isUponRequest || false, // <-- AJOUTER CETTE LIGN
+
                         maxPax: selectedCar.maxPax || '1',
                         maxBag: selectedCar.maxBag || '0'
                     });
@@ -1787,8 +2008,9 @@
             if (parts.length !== 3) return dateStr + (timeStr ? ` • ${timeStr}` : '');
             
             const dateObj = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
-            const daysShort = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-            const monthsShort = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+            const isFr = (typeof etbI18n !== 'undefined' && etbI18n.lang === 'fr');
+            const daysShort = isFr ? ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'] : ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+            const monthsShort = isFr ? ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Août', 'Sep', 'Oct', 'Nov', 'Déc'] : ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
             
             const dayName   = daysShort[dateObj.getDay()] || '';
             const monthName = monthsShort[dateObj.getMonth()] || parts[1];
@@ -1807,7 +2029,7 @@
                 tripsCartEl.style.display = 'none';
                 tripsListEl.innerHTML = '';
                 if (tripsCountEl) tripsCountEl.textContent = '0';
-                if (bookBtnLabel) bookBtnLabel.textContent = 'Book this Trip';
+                if (bookBtnLabel) bookBtnLabel.textContent = etbT('Book this Trip');
                 
                 // Masque la barre du bas et le bouton doré uniquement si aucune voiture n'est en cours de sélection
                 if (!selectedCar) {
@@ -1845,8 +2067,8 @@
                     cumulativeTotal += parseFloat(trip.price) || 0;
                 }
 
-                const priceDisplay = isQuote 
-                    ? '<span style="color: var(--etb-accent-gold, #fbac18); font-weight: 800; font-size: 13px;">Quote Upon Request</span>' 
+                const priceDisplay = isQuote
+                    ? '<span style="color: var(--etb-accent-gold, #fbac18); font-weight: 800; font-size: 13px;">' + etbT('Quote Upon Request') + '</span>'
                     : `<strong style="color: var(--etb-text-primary, #ffffff); font-size: 15px; font-weight: 800;">${parseFloat(trip.price).toFixed(0)} <span style="font-size: 12px; color: var(--etb-accent-gold, #fbac18);">${currency}</span></strong>`;
 
                 const formattedDateTime = formatLuxuryDateText(trip.date, trip.time);
@@ -1856,21 +2078,21 @@
                     ? `<div style="display: flex; flex-direction: column; gap: 4px; margin-top: 3px;">
                          <div style="display: flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--etb-accent-gold, #fbac18);">
                            <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
-                           <strong>By the hour (${trip.duration} Hours Charter)</strong>
+                           <strong>${etbT('By the hour')} (${escapeHtml(trip.duration)} ${etbT('Hours Charter')})</strong>
                          </div>
                          <div style="display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--etb-text-secondary, #cbd5e1); overflow: hidden;">
                            <span class="etb-bar-bullet etb-bar-bullet-pickup"></span>
-                           <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;">${trip.pickup}</span>
+                           <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;">${escapeHtml(trip.pickup)}</span>
                          </div>
                        </div>`
                     : `<div style="display: flex; flex-direction: column; gap: 4px; margin-top: 3px; width: 100%; overflow: hidden;">
                          <div style="display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--etb-text-secondary, #cbd5e1); overflow: hidden;">
-                           <span style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #22c55e; flex-shrink: 0;" title="Pickup"></span>
-                           <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;">${trip.pickup}</span>
+                           <span style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #22c55e; flex-shrink: 0;" title="${etbT('Pickup')}"></span>
+                           <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;">${escapeHtml(trip.pickup)}</span>
                          </div>
                          <div style="display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--etb-text-secondary, #cbd5e1); overflow: hidden;">
-                           <span style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--etb-accent-gold, #fbac18); flex-shrink: 0;" title="Drop-off"></span>
-                           <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;">${trip.dropoff}</span>
+                           <span style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--etb-accent-gold, #fbac18); flex-shrink: 0;" title="${etbT('Drop-off')}"></span>
+                           <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;">${escapeHtml(trip.dropoff)}</span>
                          </div>
                        </div>`;
 
@@ -1878,11 +2100,11 @@
                     <div class="etb-cart-trip-item" style="display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.03); border: 1px solid var(--etb-border-light, rgba(255,255,255,0.08)); border-radius: 9px; padding: 12px 16px; gap: 14px; transition: all 0.2s ease;">
                         <div style="display: flex; flex-direction: column; gap: 3px; overflow: hidden; flex: 1;">
                             <div style="display: flex; align-items: center; gap: 8px; flex-wrap: nowrap; overflow: hidden; width: 100%;">
-                                <span style="background: var(--etb-accent-gold, #fbac18); color: #0f172a; font-size: 10px; font-weight: 900; padding: 2px 7px; border-radius: 4px; text-transform: uppercase; letter-spacing: 0.05em; flex-shrink: 0;">Leg #${index + 1}</span>
-                                <strong style="color: var(--etb-text-primary, #ffffff); font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex-shrink: 1;">${trip.vehicle_name}</strong>
+                                <span style="background: var(--etb-brand); color: var(--etb-on-brand); font-size: 10px; font-weight: 900; padding: 2px 7px; border-radius: 4px; text-transform: uppercase; letter-spacing: 0.05em; flex-shrink: 0;">${etbT('Leg #%s').replace('%s', index + 1)}</span>
+                                <strong style="color: var(--etb-text-primary, #ffffff); font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex-shrink: 1;">${escapeHtml(trip.vehicle_name)}</strong>
                             </div>
                             <div style="display: flex; align-items: center; gap: 7px; font-size: 11.5px; color: var(--etb-text-secondary, #94a3b8); flex-wrap: wrap;">
-                                <span style="color: var(--etb-accent-gold, #fbac18); font-weight: 700;">${trip.maxPax} Pax • ${trip.maxBag} Bags</span>
+                                <span style="color: var(--etb-accent-gold, #fbac18); font-weight: 700;">${escapeHtml(trip.maxPax)} ${etbT('Pax')} • ${escapeHtml(trip.maxBag)} ${etbT('Bags')}</span>
                                 <span>•</span>
                                 <span>${formattedDateTime}</span>
                             </div>
@@ -1890,7 +2112,7 @@
                         </div>
                         <div style="display: flex; align-items: center; gap: 14px; flex-shrink: 0;">
                             <div>${priceDisplay}</div>
-                            <button type="button" class="etb-cart-remove-trip-btn" data-index="${index}" title="Remove this transfer" style="background: rgba(239, 68, 68, 0.12) !important; border: 1px solid rgba(239, 68, 68, 0.4) !important; width: 30px !important; height: 30px !important; border-radius: 8px !important; display: inline-flex !important; align-items: center !important; justify-content: center !important; cursor: pointer !important; padding: 0 !important; transition: all 0.2s ease !important;">
+                            <button type="button" class="etb-cart-remove-trip-btn" data-index="${index}" title="${etbT('Remove this transfer')}" style="background: rgba(239, 68, 68, 0.12) !important; border: 1px solid rgba(239, 68, 68, 0.4) !important; width: 30px !important; height: 30px !important; border-radius: 8px !important; display: inline-flex !important; align-items: center !important; justify-content: center !important; cursor: pointer !important; padding: 0 !important; transition: all 0.2s ease !important;">
                                 <svg width="11" height="11" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg" style="display: block; width: 11px; height: 11px; flex-shrink: 0;">
                                     <path d="M1.5 1.5L10.5 10.5M10.5 1.5L1.5 10.5" stroke="#f87171" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
                                 </svg>
@@ -1925,17 +2147,17 @@
                     if (cartTrips.length === 0) {
                         if (selectedCar) {
                             if (selectedCar.isQuote) {
-                                currentLabelEl.textContent = 'Request this Quote';
+                                currentLabelEl.textContent = etbT('Request this Quote');
                             } else if (checkIsUrgent()) {
-                                currentLabelEl.textContent = 'Urgent Booking'; // <-- NOUVEAU LABEL ICI
+                                currentLabelEl.textContent = etbT('Urgent Booking');
                             } else {
-                                currentLabelEl.textContent = 'Book this Trip';
+                                currentLabelEl.textContent = etbT('Book this Trip');
                             }
                         } else {
-                            currentLabelEl.textContent = 'Book this Trip';
+                            currentLabelEl.textContent = etbT('Book this Trip');
                         }
                     } else {
-                        currentLabelEl.textContent = hasCustomQuoteInCart ? `Request Quote (${cartTrips.length} Transfers)` : `Checkout (${cartTrips.length} Transfers)`;
+                        currentLabelEl.textContent = hasCustomQuoteInCart ? etbT('Request Quote (%s Transfers)').replace('%s', cartTrips.length) : etbT('Checkout (%s Transfers)').replace('%s', cartTrips.length);
                     }
                 }
             }
@@ -1946,7 +2168,7 @@
                 if (bridgeTripWrap && bridgeTripLabel) {
                     if (isMultiBookingEnabled) {
                         bridgeTripWrap.style.display = 'flex';
-                        bridgeTripLabel.textContent = 'Add another trip';
+                        bridgeTripLabel.textContent = etbT('Add another trip');
                     } else {
                         bridgeTripWrap.style.display = 'none';
                     }
@@ -1956,18 +2178,18 @@
                     <div class="etb-bar-col1" style="display: flex; flex-direction: column; justify-content: center; flex-shrink: 0;">
                         <div class="etb-bar-v-title" style="white-space: nowrap;">
                             <strong style="color: var(--etb-text-primary, #ffffff); font-size: 15px; letter-spacing: 0.02em;">
-                                ${cartTrips.length} Scheduled Transfers
+                                ${etbT('%s Scheduled Transfers').replace('%s', cartTrips.length)}
                             </strong>
                         </div>
                     </div>
                     <div class="etb-bar-col2" style="display: flex; flex-direction: column; justify-content: center;">
                         <div class="etb-bar-price">
                             ${hasCustomQuoteInCart 
-                                ? '<span style="color: var(--etb-accent-gold, #fbac18); font-size: 22px; font-weight: 800;">Custom Quote</span>' 
+                                ? '<span style="color: var(--etb-accent-gold, #fbac18); font-size: 22px; font-weight: 800;">' + etbT('Custom Quote') + '</span>' 
                                 : `<span style="color: var(--etb-accent-gold, #fbac18); font-size: 28px; font-weight: 900; letter-spacing: -0.5px;">${cumulativeTotal.toFixed(0)} <span style="font-size: 18px;">${currency}</span></span>`}
                         </div>
                         <div class="etb-bar-sub" style="color: var(--etb-text-secondary, #94a3b8); font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em;">
-                            Fixed All-Inclusive Rate
+                            ${etbT('Fixed All-Inclusive Rate')}
                         </div>
                     </div>
                 `;
@@ -1978,11 +2200,11 @@
 
                 if (priceBox) {
                     priceBox.innerHTML = hasCustomQuoteInCart 
-                        ? '<span style="color: var(--etb-accent-gold, #fbac18); font-size: 22px; font-weight: 800;">Custom Quote</span>' 
+                        ? '<span style="color: var(--etb-accent-gold, #fbac18); font-size: 22px; font-weight: 800;">' + etbT('Custom Quote') + '</span>' 
                         : `<span style="color: var(--etb-accent-gold, #fbac18); font-size: 28px; font-weight: 900; letter-spacing: -0.5px;">${cumulativeTotal.toFixed(0)} <span style="font-size: 18px;">${currency}</span></span>`;
                 }
                 if (subBox) {
-                    subBox.innerHTML = `<span style="color: var(--etb-text-secondary, #94a3b8); font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em;">Fixed All-Inclusive Rate</span>`;
+                    subBox.innerHTML = `<span style="color: var(--etb-text-secondary, #94a3b8); font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em;">${etbT('Fixed All-Inclusive Rate')}</span>`;
                 }
                 if (kmBox) kmBox.style.display = 'none';
             }
@@ -2010,7 +2232,7 @@
                 }
 
                 if (!selectedCar) {
-                    showError('Please select a vehicle above before adding this trip.');
+                    showError(etbT('Please select a vehicle above before adding this trip.'));
                     return;
                 }
 
@@ -2022,16 +2244,20 @@
                 const dateVal    = dateInput ? dateInput.value.trim() : '';
                 const timeVal    = timeInput ? timeInput.value.trim() : '';
 
-                if (!pickupVal) return showError('Please enter a pickup location.');
-                if (currentMode === 'transfer' && !dropoffVal) return showError('Please enter a drop-off location.');
-                if (!dateVal) return showError('Please select a date.');
-                if (!timeVal || timeVal === '-- : --') return showError('Please select a pickup time.');
+                if (!pickupVal) return showError(etbT('Please enter a pickup location.'));
+                if (currentMode === 'transfer' && !dropoffVal) return showError(etbT('Please enter a drop-off location.'));
+                if (!dateVal) return showError(etbT('Please select a date.'));
+                if (!timeVal || timeVal === '-- : --') return showError(etbT('Please select a pickup time.'));
 
                 const newTrip = {
                     id: 'trip_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
                     mode: currentMode,
                     pickup: pickupVal,
                     dropoff: dropoffVal,
+                    pickup_lat: pickupLatEl ? pickupLatEl.value : '',
+                    pickup_lng: pickupLngEl ? pickupLngEl.value : '',
+                    dropoff_lat: dropoffLatEl ? dropoffLatEl.value : '',
+                    dropoff_lng: dropoffLngEl ? dropoffLngEl.value : '',
                     duration: durVal,
                     date: dateVal,
                     time: timeVal,
@@ -2051,7 +2277,7 @@
                 carCards.forEach(c => {
                     c.classList.remove('selected');
                     const b = c.querySelector('.etb-quick-select-btn');
-                    if (b) b.textContent = (c.dataset.isQuote === '1' || isQuoteMode) ? 'Request Quote' : 'Select';
+                    if (b) b.textContent = (c.dataset.isQuote === '1' || isQuoteMode) ? etbT('Request Quote') : etbT('Select');
                 });
 
                 // 2. Remet selectedCar à null AVANT d'actualiser le panier
@@ -2085,7 +2311,7 @@
 
                 // Si aucun trajet n'est au panier et aucune voiture n'est sélectionnée : erreur
                 if (cartTrips.length === 0 && !selectedCar) {
-                    showError('Please select a vehicle or add at least one trip to your booking.');
+                    showError(etbT('Please select a vehicle or add at least one trip to your booking.'));
                     return;
                 }
 
@@ -2109,12 +2335,12 @@
                     const timeVal    = timeInput ? timeInput.value.trim() : '';
 
                     if (!pickupVal) {
-                        showError('Please enter a pickup location.');
+                        showError(etbT('Please enter a pickup location.'));
                         if (pInputEl) pInputEl.focus();
                         return;
                     }
                     if (currentMode === 'transfer' && !dropoffVal) {
-                        showError('Please enter a drop-off location.');
+                        showError(etbT('Please enter a drop-off location.'));
                         if (dInputEl) dInputEl.focus();
                         return;
                     }
@@ -2124,6 +2350,10 @@
                         mode: currentMode,
                         pickup: pickupVal,
                         dropoff: dropoffVal,
+                        pickup_lat: pickupLatEl ? pickupLatEl.value : '',
+                        pickup_lng: pickupLngEl ? pickupLngEl.value : '',
+                        dropoff_lat: dropoffLatEl ? dropoffLatEl.value : '',
+                        dropoff_lng: dropoffLngEl ? dropoffLngEl.value : '',
                         duration: durVal,
                         date: dateVal,
                         time: timeVal,
@@ -2132,6 +2362,7 @@
                         vehicle_img: selectedCar.img || '',
                         price: selectedCar.price,
                         isQuote: selectedCar.isQuote,
+                        isUponRequest: selectedCar.isUponRequest || false, // <-- AJOUTER CETTE LIGN
                         maxPax: selectedCar.maxPax || '1',
                         maxBag: selectedCar.maxBag || '0'
                     });
@@ -2146,7 +2377,7 @@
                 bookNowBtn.disabled = true;
                 const activeLabelEl = bookNowBtn.querySelector('#etb-quick-book-btn-label');
                 if (activeLabelEl) {
-                    activeLabelEl.textContent = 'Checkout...';
+                    activeLabelEl.textContent = etbT('Checkout...');
                 }
 
                 // Préparation de la requête AJAX vers notre générateur de devis
@@ -2195,7 +2426,7 @@
                     isSubmittingQuote = false;
                     bookNowBtn.disabled = false;
                     if (activeLabelEl) renderTripsCart();
-                    showError('Communication error. Please try again.');
+                    showError(etbT('Communication error. Please try again.'));
                 });
             });
         }
@@ -2204,10 +2435,10 @@
          // ── RESTAURATION AUTOMATIQUE DE LA SESSION (RETOUR DU CHECKOUT OU ACTUALISATION) ──
         const restoreQuickSession = () => {
 
-                // 0. Restauration de l'état du switch Multi-Booking
+                // 0. Restauration de l'état du switch Multi-Booking (respecte le setting admin)
             try {
                 const storedMb = sessionStorage.getItem('etb_multi_booking_enabled');
-                if (storedMb === '1') {
+                if (storedMb === '1' && adminMultiBookingEnabled) {
                     isMultiBookingEnabled = true;
                     if (multiTripToggle) multiTripToggle.checked = true;
                 } else {
@@ -2321,11 +2552,13 @@
                 const labelEl = bookNowBtn.querySelector('#etb-quick-book-btn-label');
                 if (labelEl) {
                     if (selectedCar && selectedCar.isQuote) {
-                        labelEl.textContent = 'Request';
+                        labelEl.textContent = etbT('Request Quote');
+                    } else if (selectedCar && selectedCar.isUponRequest) {
+                        labelEl.textContent = etbT('Request Premium');
                     } else if (checkIsUrgent()) {
-                        labelEl.textContent = 'Urgent Booking'; // <-- NOUVEAU LABEL ICI
+                        labelEl.textContent = etbT('Urgent Booking');
                     } else {
-                        labelEl.textContent = 'Book Trip';
+                        labelEl.textContent = etbT('Book Trip');
                     }
                 }
             }
@@ -2639,7 +2872,7 @@
             if (babyRow) {
                 if (feeBaby > 0) {
                     babyRow.style.setProperty('display', 'flex', 'important');
-                    if (babyLabel) babyLabel.textContent = `Extra Baby Seat (${paidBaby})`;
+                    if (babyLabel) babyLabel.textContent = `${etbT('Extra Baby Seat')} (${paidBaby})`;
                     if (babyVal) babyVal.textContent = `+ ${feeBaby.toFixed(2)} ${currency}`;
                 } else {
                     babyRow.style.setProperty('display', 'none', 'important');
@@ -2654,7 +2887,7 @@
             if (boosterRow) {
                 if (feeBooster > 0) {
                     boosterRow.style.setProperty('display', 'flex', 'important');
-                    if (boosterLabel) boosterLabel.textContent = `Extra Booster Seat (${paidBooster})`;
+                    if (boosterLabel) boosterLabel.textContent = `${etbT('Extra Booster Seat')} (${paidBooster})`;
                     if (boosterVal) boosterVal.textContent = `+ ${feeBooster.toFixed(2)} ${currency}`;
                 } else {
                     boosterRow.style.setProperty('display', 'none', 'important');
@@ -2676,9 +2909,9 @@
                     payTipRowEl.style.setProperty('display', 'none', 'important');
                 }
                 if (tipAmountInput) tipAmountInput.value = '0';
-                if (sumTotalPrice) sumTotalPrice.textContent = 'Custom Quote';
-                if (payGrandTotalEl) payGrandTotalEl.textContent = 'Custom Quote';
-                if (payTotalDueEl) payTotalDueEl.textContent = 'Custom Quote';
+                if (sumTotalPrice) sumTotalPrice.textContent = etbT('Custom Quote');
+                if (payGrandTotalEl) payGrandTotalEl.textContent = etbT('Custom Quote');
+                if (payTotalDueEl) payTotalDueEl.textContent = etbT('Custom Quote');
                 return;
             }
 
@@ -2728,7 +2961,7 @@
 
             if (currentCheckoutStep === 2 && submitText) {
                 const finalBtnTotal = (tipVal > 0) ? formattedTotal : (subtotalBeforeTip.toFixed(2) + ' ' + currency);
-                submitText.textContent = `Pay ${finalBtnTotal} Now`;
+                submitText.textContent = etbT('Pay %s Now').replace('%s', finalBtnTotal);
             }
         };
 
@@ -2781,7 +3014,7 @@
                     if (sumDurationRow) {
                         sumDurationRow.classList.remove('is-hidden');
                         sumDurationRow.style.setProperty('display', 'flex', 'important');
-                        if (sumDuration) sumDuration.textContent = `${durVal} Hours rental`;
+                        if (sumDuration) sumDuration.textContent = `${durVal} ${etbT('Hours rental')}`;
                     }
                 } else {
                     if (sumDurationRow) {
@@ -2802,13 +3035,16 @@
                 const parts = dStr.split('-');
                 let dateFormatted = dStr;
                 if (parts.length === 3) {
-                    const monthsEn = ['Jan.', 'Feb.', 'Mar.', 'Apr.', 'May', 'Jun.', 'Jul.', 'Aug.', 'Sep.', 'Oct.', 'Nov.', 'Dec.'];
+                    const isFr = (typeof etbI18n !== 'undefined' && etbI18n.lang === 'fr');
+                    const monthsEn = isFr
+                        ? ['Jan.', 'Fév.', 'Mar.', 'Avr.', 'Mai', 'Juin', 'Juil.', 'Août', 'Sep.', 'Oct.', 'Nov.', 'Déc.']
+                        : ['Jan.', 'Feb.', 'Mar.', 'Apr.', 'May', 'Jun.', 'Jul.', 'Aug.', 'Sep.', 'Oct.', 'Nov.', 'Dec.'];
                     const mIdx = parseInt(parts[1], 10) - 1;
                     const day = String(parts[2]).padStart(2, '0');
                     const month = monthsEn[mIdx] || parts[1];
                     dateFormatted = `${day} ${month} ${parts[0]}`;
                 }
-                return tStr ? `${dateFormatted} at ${tStr}` : dateFormatted;
+                return tStr ? `${dateFormatted} ${etbT('at')} ${tStr}` : dateFormatted;
             };
 
             if (sumDatetime && dateVal) {
@@ -2819,7 +3055,7 @@
             baseNumericPrice = parseFloat(rawPrice) || 0;
             isQuoteRide      = (rawPrice === 'Custom Quote' || baseNumericPrice <= 0);
 
-            const formattedPrice = isQuoteRide ? 'Custom Quote' : `${baseNumericPrice.toFixed(2)} ${currency}`;
+            const formattedPrice = isQuoteRide ? etbT('Custom Quote') : `${baseNumericPrice.toFixed(2)} ${currency}`;
             if (sumBasePrice) sumBasePrice.textContent = formattedPrice;
             if (sumTotalPrice) sumTotalPrice.textContent = formattedPrice;
 
@@ -2882,44 +3118,58 @@
             const isUrgentInput  = checkoutRoot.querySelector('#etb-chk-is-urgent');
             const urgentNoticeEl = checkoutRoot.querySelector('#etb-chk-urgent-notice-box');
             const payLaterWrap   = checkoutRoot.querySelector('#etb-chk-pay-later-wrap');
+            const uponRequestInput = checkoutRoot.querySelector('#etb-chk-is-upon-request'); // <-- NOUVEAU
 
-            // Évaluation synchronisée : validée si calculée par le navigateur OU initialisée par PHP
             const isUrgentRide = checkIsUrgentCheckout() || (isUrgentInput && isUrgentInput.value === '1');
+            const isUponRequestRide = (uponRequestInput && uponRequestInput.value === '1'); // <-- NOUVEAU
 
             if (isUrgentInput) isUrgentInput.value = isUrgentRide ? '1' : '0';
             if (urgentNoticeEl) urgentNoticeEl.style.display = isUrgentRide ? 'block' : 'none';
-            if (payLaterWrap && isUrgentRide) payLaterWrap.style.display = 'none';
+            if (payLaterWrap && (isUrgentRide || isUponRequestRide)) payLaterWrap.style.display = 'none';
+
+            // 💡 SÉCURITÉ : Masquage des pourboires pour Devis, Urgent et Upon Request
+            if (isQuoteRide || isUrgentRide || isUponRequestRide) {
+                if (tipSectionEl) tipSectionEl.style.setProperty('display', 'none', 'important');
+                if (tipAmountInput) tipAmountInput.value = '0'; // On remet à 0 par sécurité
+                
+                // On s'assure que la ligne de pourboire dans le résumé est masquée
+                if (tipRow) {
+                    tipRow.classList.remove('is-visible');
+                    tipRow.style.setProperty('display', 'none', 'important');
+                }
+                if (payTipRowEl) {
+                    payTipRowEl.classList.add('is-hidden');
+                    payTipRowEl.style.setProperty('display', 'none', 'important');
+                }
+            }
 
             if (isQuoteRide) {
-                // 1. Bouton d'action Devis
-                if (submitText) submitText.textContent = 'Submit Quote Request';
-
-                // 2. Masquage total de la section pourboire
-                if (tipSectionEl) tipSectionEl.style.setProperty('display', 'none', 'important');
+                if (submitText) submitText.textContent = etbT('Submit Request');
+            } else if (isUponRequestRide) {
+                if (submitText) submitText.textContent = etbT('Submit Request');
             } else if (isUrgentRide) {
-                // Bouton d'action Course Urgente (< 24h)
-                if (submitText) submitText.textContent = 'Request Urgent Booking';
-                
+                if (submitText) submitText.textContent = etbT('Urgent Booking');
+
                 // 3. Masquage de la ligne Base Fare redondante
                 if (baseFareRowEl) baseFareRowEl.style.setProperty('display', 'none', 'important');
 
                 // 4. Libellé propre : "Estimated Rate" au lieu de "Total (All Inclusive)"
-                if (totalLabelEl) totalLabelEl.textContent = 'Estimated Rate';
+                if (totalLabelEl) totalLabelEl.textContent = etbT('Estimated Rate');
 
                 // 5. Engagements adaptés au devis
                 if (guaranteesBoxEl) {
                     guaranteesBoxEl.innerHTML = `
                         <div class="etb-chk-guarantee-line">
                             <span class="dashicons dashicons-clock"></span>
-                            <span>Tailored quotation sent within 1 hour</span>
+                            <span>${etbT('Tailored quotation sent within 1 hour')}</span>
                         </div>
                         <div class="etb-chk-guarantee-line">
                             <span class="dashicons dashicons-shield"></span>
-                            <span>Licensed professional chauffeur & premium vehicle</span>
+                            <span>${etbT('Licensed professional chauffeur & premium vehicle')}</span>
                         </div>
                         <div class="etb-chk-guarantee-line">
                             <span class="dashicons dashicons-yes"></span>
-                            <span>No payment required until quotation is approved</span>
+                            <span>${etbT('No payment required until quotation is approved')}</span>
                         </div>
                     `;
                 }
@@ -2927,7 +3177,7 @@
                 // Course standard à tarif fixe : affichage normal
                 if (tipSectionEl) tipSectionEl.style.display = '';
                 if (baseFareRowEl) baseFareRowEl.style.display = 'flex';
-                if (totalLabelEl) totalLabelEl.textContent = 'Total (All Inclusive)';
+                if (totalLabelEl) totalLabelEl.textContent = etbT('Total (All Inclusive)');
             }
 
             // Détection aéroport contextuelle
@@ -2955,29 +3205,29 @@
 
                     if (isPickupAirport) {
                         airportCard.style.display = 'block';
-                        if (airportTitle) airportTitle.textContent = 'Airport Arrival';
-                        if (airportDesc)  airportDesc.textContent  = 'Real-time flight tracking included.';
-                        if (flightLabel)  flightLabel.textContent  = 'Flight Number';
-                        if (flightHint)   flightHint.textContent   = '1 hour free waiting time after landing.';
+                        if (airportTitle) airportTitle.textContent = etbT('Airport Arrival');
+                        if (airportDesc)  airportDesc.textContent  = etbT('Real-time flight tracking included.');
+                        if (flightLabel)  flightLabel.textContent  = etbT('Flight Number');
+                        if (flightHint)   flightHint.textContent   = etbT('1 hour free waiting time after landing.');
                         if (signField)    signField.style.display  = 'block';
                         if (airportGrid)  airportGrid.style.gridTemplateColumns = '';
-                        if (waitTimeText) waitTimeText.textContent = '60 min complimentary wait time included (flight tracking)';
+                        if (waitTimeText) waitTimeText.textContent = etbT('60 min complimentary wait time included (flight tracking)');
                     } else if (isDropoffAirport) {
                         airportCard.style.display = 'block';
-                        if (airportTitle) airportTitle.textContent = 'Airport Drop-off & Departure Terminal';
-                        if (airportDesc)  airportDesc.textContent  = 'Helps your chauffeur drop you off directly in front of the correct departures terminal gate.';
-                        if (flightLabel)  flightLabel.textContent  = 'Flight Number or Departure Terminal (Optional)';
-                        if (flightHint)   flightHint.textContent   = 'e.g. Terminal 2E, AF 7704 — Ensures a seamless curbside drop-off.';
+                        if (airportTitle) airportTitle.textContent = etbT('Airport Drop-off & Departure Terminal');
+                        if (airportDesc)  airportDesc.textContent  = etbT('Helps your chauffeur drop you off directly in front of the correct departures terminal gate.');
+                        if (flightLabel)  flightLabel.textContent  = etbT('Flight Number or Departure Terminal (Optional)');
+                        if (flightHint)   flightHint.textContent   = etbT('e.g. Terminal 2E, AF 7704 — Ensures a seamless curbside drop-off.');
                         if (signField) {
                             signField.style.display = 'none';
                             const signInput = signField.querySelector('input');
                             if (signInput) signInput.value = '';
                         }
                         if (airportGrid)  airportGrid.style.gridTemplateColumns = '1fr';
-                        if (waitTimeText) waitTimeText.textContent = '15 min complimentary wait time included';
+                        if (waitTimeText) waitTimeText.textContent = etbT('15 min complimentary wait time included');
                     } else {
                         airportCard.style.display = 'none';
-                        if (waitTimeText) waitTimeText.textContent = '15 min complimentary wait time included';
+                        if (waitTimeText) waitTimeText.textContent = etbT('15 min complimentary wait time included');
                         if (signField) {
                             const signInput = signField.querySelector('input');
                             if (signInput) signInput.value = '';
@@ -2990,7 +3240,7 @@
             const maxPaxAllowed = parseInt(sumPax ? sumPax.textContent : 3, 10) || 3;
             const maxBagAllowed = parseInt(sumBag ? sumBag.textContent : 2, 10) || 2;
 
-            if (paxHint) paxHint.textContent = `Max: ${maxPaxAllowed}`;
+            if (paxHint) paxHint.textContent = `${etbT('Max:')} ${maxPaxAllowed}`;
             if (bagHint) bagHint.textContent = '-'; /*`Max: ${maxBagAllowed}`;*/
 
             if (paxInputEl) {
@@ -3004,6 +3254,18 @@
 
             // Calcul initial du pourboire à 0%
             recalculateTotalWithTip(0);
+
+            // 💡 GESTION DE L'UPON REQUEST AU CHARGEMENT
+            const isUponRequestEl = checkoutRoot.querySelector('#etb-chk-is-upon-request');
+            const isUponRequest = isUponRequestEl && isUponRequestEl.value === '1';
+
+            if (isUponRequest) {
+                if (submitText) submitText.textContent = etbT('Submit Premium Request');
+                if (payLaterWrap) payLaterWrap.style.display = 'none';
+                // On masque la section "tip" si on veut (optionnel)
+                // const tipSectionEl = checkoutRoot.querySelector('.etb-chk-tip-section');
+                // if (tipSectionEl) tipSectionEl.style.display = 'none';
+            }
         };
 
         hydrateFromHandoff();
@@ -3195,13 +3457,9 @@
                 const targetBtn  = legTabBtns[targetIdx];
                 const legData    = perLegState[targetIdx];
 
-                // 2. Mise à jour visuelle des pilules d'onglets
+                // 2. Mise à jour visuelle des pilules d'onglets (pilotée par CSS thématisé)
                 legTabBtns.forEach((b, i) => {
-                    const isActive = (i === targetIdx);
-                    b.classList.toggle('active', isActive);
-                    b.style.border     = isActive ? '1.5px solid var(--etb-accent-gold, #fbac18)' : '1px solid var(--etb-border-light, rgba(255,255,255,0.12))';
-                    b.style.background = isActive ? 'rgba(251, 172, 24, 0.15)' : 'rgba(255,255,255,0.03)';
-                    b.style.color      = isActive ? 'var(--etb-accent-gold, #fbac18)' : 'var(--etb-text-secondary, #94a3b8)';
+                    b.classList.toggle('active', i === targetIdx);
                 });
 
                 // 3. Mise à jour du bandeau contextuel (Véhicule, 2 lignes d'adresses, Date)
@@ -3217,33 +3475,33 @@
                         legInfoRoute.innerHTML = `
                             <div style="display: flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--etb-accent-gold, #fbac18);">
                                 <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
-                                <strong>By the hour (${dur} Hours Charter)</strong>
+                                <strong>${etbT('By the hour')} (${escapeHtml(dur)} ${etbT('Hours Charter')})</strong>
                             </div>
                             <div style="display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--etb-text-secondary, #64748b); overflow: hidden;">
-                                <span style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #22c55e; flex-shrink: 0;" title="Pickup"></span>
-                                <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${p}</span>
+                                <span style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #22c55e; flex-shrink: 0;" title="${etbT('Pickup')}"></span>
+                                <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(p)}</span>
                             </div>
                         `;
                     } else {
                         legInfoRoute.innerHTML = `
                             <div style="display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--etb-text-secondary, #64748b); overflow: hidden;">
-                                <span style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #22c55e; flex-shrink: 0;" title="Pickup"></span>
-                                <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${p}</span>
+                                <span style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #22c55e; flex-shrink: 0;" title="${etbT('Pickup')}"></span>
+                                <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(p)}</span>
                             </div>
                             <div style="display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--etb-text-secondary, #64748b); overflow: hidden;">
-                                <span style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--etb-accent-gold, #fbac18); flex-shrink: 0;" title="Drop-off"></span>
-                                <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${d}</span>
+                                <span style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--etb-accent-gold, #fbac18); flex-shrink: 0;" title="${etbT('Drop-off')}"></span>
+                                <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(d)}</span>
                             </div>
                         `;
                     }
                 }
 
                 if (legInfoDate && targetBtn.dataset.date) {
-                    legInfoDate.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg> <span>${targetBtn.dataset.date}</span>`;
+                    legInfoDate.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg> <span>${escapeHtml(targetBtn.dataset.date)}</span>`;
                 }
 
                 // 4. Adaptation dynamique des capacités MAX du véhicule actif
-                if (paxHint) paxHint.textContent = 'Max: ' + legData.maxPax;
+                if (paxHint) paxHint.textContent = etbT('Max:') + ' ' + legData.maxPax;
                 if (paxInputEl) {
                     paxInputEl.dataset.max = legData.maxPax;
                     paxInputEl.value       = Math.min(legData.pax, legData.maxPax);
@@ -3277,10 +3535,10 @@
 
                     if (isPickupApt) {
                         airportCard.style.display = 'block';
-                        if (airportTitle) airportTitle.textContent = `Airport Arrival (Trip #${targetIdx + 1})`;
-                        if (airportDesc)  airportDesc.textContent  = 'Real-time flight tracking included.';
-                        if (flightLabel)  flightLabel.textContent  = 'Flight Number';
-                        if (flightHint)   flightHint.textContent   = '1 hour free waiting time after landing.';
+                        if (airportTitle) airportTitle.textContent = `${etbT('Airport Arrival')} (${etbT('Trip #')}${targetIdx + 1})`;
+                        if (airportDesc)  airportDesc.textContent  = etbT('Real-time flight tracking included.');
+                        if (flightLabel)  flightLabel.textContent  = etbT('Flight Number');
+                        if (flightHint)   flightHint.textContent   = etbT('1 hour free waiting time after landing.');
                         if (signField)    signField.style.display  = 'block';
 
                         // Remplissage automatique de la pancarte si encore vide
@@ -3289,10 +3547,10 @@
                         }
                     } else if (isDropoffApt) {
                         airportCard.style.display = 'block';
-                        if (airportTitle) airportTitle.textContent = `Airport Departure Terminal (Trip #${targetIdx + 1})`;
-                        if (airportDesc)  airportDesc.textContent  = 'Helps your chauffeur drop you off directly at the correct terminal gate.';
-                        if (flightLabel)  flightLabel.textContent  = 'Flight Number or Departure Terminal (Optional)';
-                        if (flightHint)   flightHint.textContent   = 'e.g. Terminal 2E, AF 7704';
+                        if (airportTitle) airportTitle.textContent = `${etbT('Airport Departure Terminal')} (${etbT('Trip #')}${targetIdx + 1})`;
+                        if (airportDesc)  airportDesc.textContent  = etbT('Helps your chauffeur drop you off directly at the correct terminal gate.');
+                        if (flightLabel)  flightLabel.textContent  = etbT('Flight Number or Departure Terminal (Optional)');
+                        if (flightHint)   flightHint.textContent   = etbT('e.g. Terminal 2E, AF 7704');
                         if (signField)    signField.style.display  = 'none';
                     } else {
                         // Trajet 100% ville : on masque complètement la boîte pour ce trajet
@@ -3539,7 +3797,7 @@
                 if (step2Panel) step2Panel.style.display = 'none';
                 if (step1Panel) step1Panel.style.display = 'block';
                 currentCheckoutStep = 1;
-                if (submitText) submitText.textContent = isQuoteRide ? 'Submit Quote Request' : 'Continue to Payment';
+                if (submitText) submitText.textContent = isQuoteRide ? etbT('Submit Quote Request') : etbT('Continue to Payment');
                 checkoutRoot.scrollIntoView({ behavior: 'smooth', block: 'start' });
             });
         }
@@ -3549,8 +3807,8 @@
             // Force la synchronisation des données de l'onglet actif juste avant l'envoi
             if (typeof window.etbForceSyncActiveLeg === 'function') window.etbForceSyncActiveLeg();
 
-            const originalBtnText = isQuoteRide ? 'Submit Quote Request' : 'Continue to Payment';
-            if (submitText) submitText.textContent = isPayLater ? 'Registering...' : 'Dispatching ...';
+            const originalBtnText = isQuoteRide ? etbT('Submit Quote Request') : etbT('Continue to Payment');
+            if (submitText) submitText.textContent = isPayLater ? etbT('Registering...') : etbT('Dispatching ...');
 
             const emailVal = checkoutRoot.querySelector('#etb-passenger-email')?.value.trim() || '';
             const tipVal   = checkoutRoot.querySelector('#etb-chk-tip-amount')?.value || '0';
@@ -3583,9 +3841,11 @@
                     // SI PAIEMENT IMMÉDIAT : Redirection vers la page de paiement
                     const isExplicitPayLater = isPayLater || formData.get('etb_pay_later') === '1';
                     const isUrgentBooking    = formData.get('etb_is_urgent') === '1';
+                    const isUponRequest      = formData.get('etb_is_upon_request') === '1';
 
-                    if (!isQuoteRide && !isExplicitPayLater && !isUrgentBooking && res.data && res.data.payment_url) {
-                        if (submitText) submitText.textContent = 'Opening Payment...';
+                    // On ne redirige PAS si c'est urgent ou upon request
+                    if (!isQuoteRide && !isExplicitPayLater && !isUrgentBooking && !isUponRequest && res.data && res.data.payment_url) {
+                        if (submitText) submitText.textContent = etbT('Opening Payment...');
                         window.location.href = res.data.payment_url;
                         return;
                     }
@@ -3602,21 +3862,21 @@
                     if (leftCol) {
                         const rawRef = String(res.data.booking_ref || res.data.booking_id || '').replace(/^#+/, '');
                         const finalDisplayRef = rawRef ? ('#' + rawRef) : ('#' + res.data.booking_id);
-                        let successTitle    = 'Reservation Registered (Payment Pending)';
-                        let successSubtitle = 'Your reservation <strong>' + finalDisplayRef + '</strong> has been registered.';
-                        let successDetails  = '<p style="margin: 6px 0;">An email with your secure payment link has been sent to <strong>' + emailVal + '</strong>.</p>'
-                            + '<p style="margin: 6px 0;">You can complete your payment anytime before pickup to confirm your chauffeur.</p>';
+                        let successTitle    = etbT('Reservation Registered (Payment Pending)');
+                        let successSubtitle = etbT('Your reservation %s has been registered.').replace('%s', '<strong>' + escapeHtml(finalDisplayRef) + '</strong>');
+                        let successDetails  = '<p style="margin: 6px 0;">' + etbT('An email with your secure payment link has been sent to %s.').replace('%s', '<strong>' + escapeHtml(emailVal) + '</strong>') + '</p>'
+                            + '<p style="margin: 6px 0;">' + etbT('You can complete your payment anytime before pickup to confirm your chauffeur.') + '</p>';
 
                        if (isQuoteRide) {
-                            successTitle    = 'Quote Request Successfully Submitted!';
-                            successSubtitle = 'Your quote request <strong>#' + finalDisplayRef + '</strong> has been sent to our dispatch team.';
-                            successDetails  = '<p style="margin: 6px 0;">An acknowledgment has been sent to <strong>' + emailVal + '</strong>.</p>'
-                                + '<p style="margin: 6px 0;">Our dispatcher will send a tailored quotation within <strong>1 hour</strong>.</p>';
+                            successTitle    = etbT('Quote Request Successfully Submitted!');
+                            successSubtitle = etbT('Your quote request %s has been sent to our dispatch team.').replace('%s', '<strong>' + escapeHtml(finalDisplayRef) + '</strong>');
+                            successDetails  = '<p style="margin: 6px 0;">' + etbT('An acknowledgment has been sent to %s.').replace('%s', '<strong>' + escapeHtml(emailVal) + '</strong>') + '</p>'
+                                + '<p style="margin: 6px 0;">' + etbT('Our dispatcher will send a tailored quotation within %s.').replace('%s', '<strong>' + etbT('1 hour') + '</strong>') + '</p>';
                        } else if (isUrgentBooking) {
-                            successTitle    = 'Urgent Booking Received!';
-                            successSubtitle = 'Your short-notice reservation <strong>#' + finalDisplayRef + '</strong> is being verified by dispatch.';
-                            successDetails  = '<p style="margin: 6px 0;">Our team is immediately verifying chauffeur allocation for your pickup time.</p>'
-                                + '<p style="margin: 6px 0;">You will receive final confirmation and your payment link within <strong>1 hour</strong>.</p>';
+                            successTitle    = etbT('Urgent Booking Received!');
+                            successSubtitle = etbT('Your short-notice reservation %s is being verified by dispatch.').replace('%s', '<strong>' + escapeHtml(finalDisplayRef) + '</strong>');
+                            successDetails  = '<p style="margin: 6px 0;">' + etbT('Our team is immediately verifying chauffeur allocation for your pickup time.') + '</p>'
+                                + '<p style="margin: 6px 0;">' + etbT('You will receive final confirmation and your payment link within %s.').replace('%s', '<strong>' + etbT('1 hour') + '</strong>') + '</p>';
                         }
 
                         // Masquage propre de la colonne droite et centrage
@@ -3630,18 +3890,18 @@
                             layoutGrid.style.setProperty('margin', '0 auto', 'important');
                         }
 
-                        leftCol.innerHTML = '<div class="etb-checkout-card" style="text-align: center; padding: 45px 35px; border-color: #16a34a; box-shadow: 0 10px 40px rgba(0,0,0,0.1);">'
-                            + '<div style="display: inline-flex; align-items: center; justify-content: center; width: 68px; height: 68px; background: rgba(34, 197, 94, 0.15); border: 2px solid #22c55e; border-radius: 50%; margin-bottom: 20px; color: #4ade80;">'
+                        leftCol.innerHTML = '<div class="etb-checkout-card etb-success-card">'
+                            + '<div class="etb-success-icon">'
                             + '<svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>'
                             + '</div>'
-                            + '<h2 style="color: #4ade80; font-size: 24px; font-weight: 800; margin: 0 0 12px 0;">' + successTitle + '</h2>'
-                            + '<p style="font-size: 15px; margin-bottom: 25px; line-height: 1.55;">' + successSubtitle + '</p>'
-                            + '<div style="background: rgba(255,255,255,0.04); border: 1px solid var(--etb-border-light, rgba(255,255,255,0.1)); border-radius: 12px; padding: 18px 22px; margin-bottom: 30px; text-align: left; font-size: 13.5px; line-height: 1.6;">'
+                            + '<h2 class="etb-success-title">' + successTitle + '</h2>'
+                            + '<p class="etb-success-subtitle">' + successSubtitle + '</p>'
+                            + '<div class="etb-success-details">'
                             + successDetails
                             + '</div>'
-                            + '<div style="display: flex; justify-content: center; gap: 12px; flex-wrap: wrap;">'
-                            + (res.data.payment_url && isPayLater ? '<a href="' + res.data.payment_url + '" class="etb-chk-submit-btn" style="text-decoration: none; display: inline-flex; width: auto; padding: 14px 28px;">Proceed to Payment Now ➔</a>' : '')
-                            + '<a href="' + homeReturnUrl + '" class="etb-chk-submit-btn" style="text-decoration: none; display: inline-flex; width: auto; padding: 14px 28px; background: #334155;">Return to Home</a>'
+                            + '<div class="etb-success-actions">'
+                            + (res.data.payment_url && isPayLater ? '<a href="' + encodeURI(res.data.payment_url) + '" class="etb-chk-submit-btn etb-success-btn">' + etbT('Proceed to Payment Now ➔') + '</a>' : '')
+                            + '<a href="' + encodeURI(homeReturnUrl) + '" class="etb-chk-submit-btn etb-success-btn etb-success-btn-secondary">' + etbT('Return to Home') + '</a>'
                             + '</div>'
                             + '</div>';
 
@@ -3649,13 +3909,13 @@
                     }
                 } else {
                     setCheckoutButtonsLocked(false);
-                    showFeedback(res.data.message || 'Booking creation failed.', 'error');
+                    showFeedback(res.data.message || etbT('Booking creation failed.'), 'error');
                 }
             })
             .catch(err => {
                 console.error('Final dispatch error:', err);
                 setCheckoutButtonsLocked(false);
-                showFeedback('Communication error. Please try again.', 'error');
+                showFeedback(etbT('Communication error. Please try again.'), 'error');
             });
         };
 
@@ -3668,9 +3928,9 @@
             if (submitBtn) {
                 submitBtn.disabled = locked;
                 if (locked && !isPayLaterClick) {
-                    if (submitText) submitText.textContent = isQuoteRide ? 'Submitting Quote Request...' : 'Securing & Redirecting...';
+                    if (submitText) submitText.textContent = isQuoteRide ? etbT('Submitting Quote Request...') : etbT('Securing & Redirecting...');
                 } else if (!locked) {
-                    if (submitText) submitText.textContent = isQuoteRide ? 'Submit Quote Request' : 'Continue to Payment';
+                    if (submitText) submitText.textContent = isQuoteRide ? etbT('Submit Quote Request') : etbT('Continue to Payment');
                 }
             }
 
@@ -3678,11 +3938,11 @@
                 if (locked) {
                     payLaterLink.style.pointerEvents = 'none';
                     payLaterLink.style.opacity = '0.4';
-                    if (isPayLaterClick) payLaterLink.textContent = 'Registering order...';
+                    if (isPayLaterClick) payLaterLink.textContent = etbT('Registering order...');
                 } else {
                     payLaterLink.style.pointerEvents = 'auto';
                     payLaterLink.style.opacity = '1';
-                    payLaterLink.textContent = 'Or book now and Pay Later ➔';
+                    payLaterLink.textContent = etbT('Or book now and Pay Later ➔');
                 }
             }
         };
@@ -3695,11 +3955,11 @@
             const vehicleId = vehicleIdInput ? vehicleIdInput.value : '';
 
             if (!fNameVal || !lNameVal) {
-                showFeedback('Please enter the passenger first and last name.', 'error');
+                showFeedback(etbT('Please enter the passenger first and last name.'), 'error');
                 return false;
             }
             if (!emailVal || !emailVal.includes('@')) {
-                showFeedback('Please enter a valid email address for ride confirmation.', 'error');
+                showFeedback(etbT('Please enter a valid email address for ride confirmation.'), 'error');
                 return false;
             }
 
@@ -3708,7 +3968,7 @@
             const digitsCount = rawPhone.replace(/\D/g, '').length;
 
             if (!rawPhone || digitsCount < 5) {
-                showFeedback('Please enter a mobile phone number for chauffeur SMS updates.', 'error');
+                showFeedback(etbT('Please enter a mobile phone number for chauffeur SMS updates.'), 'error');
                 if (phoneInputEl) phoneInputEl.focus();
                 return false;
             }
@@ -3716,14 +3976,14 @@
             // Vérification de cohérence par pays avec Google libphonenumber si disponible
             if (phoneIti && typeof phoneIti.isValidNumber === 'function' && typeof window.intlTelInputUtils !== 'undefined') {
                 if (!phoneIti.isValidNumber()) {
-                    showFeedback('Please enter a valid phone number for the selected country.', 'error');
+                    showFeedback(etbT('Please enter a valid phone number for the selected country.'), 'error');
                     if (phoneInputEl) phoneInputEl.focus();
                     return false;
                 }
             }
 
             if (!vehicleId) {
-                showFeedback('No vehicle selected. Please return and choose a vehicle.', 'error');
+                showFeedback(etbT('No vehicle selected. Please return and choose a vehicle.'), 'error');
                 return false;
             }
             return true;
@@ -3908,19 +4168,9 @@
         const panels     = payRoot.querySelectorAll('.etb-pay-panel');
 
         const switchPaymentTab = function (targetTab) {
-            // Mise à jour visuelle des boutons d'onglets
+            // Mise à jour visuelle des boutons d'onglets (pilotée par CSS thématisé)
             tabButtons.forEach(btn => {
-                const isActive = (btn.dataset.tab === targetTab);
-                btn.classList.toggle('active', isActive);
-                if (isActive) {
-                    btn.style.border = '1.5px solid var(--etb-accent-gold, #fbac18)';
-                    btn.style.background = 'rgba(251, 172, 24, 0.1)';
-                    btn.style.color = 'var(--etb-text-primary, #ffffff)';
-                } else {
-                    btn.style.border = '1px solid var(--etb-border-light, rgba(255,255,255,0.12))';
-                    btn.style.background = 'rgba(255,255,255,0.03)';
-                    btn.style.color = 'var(--etb-text-secondary, #94a3b8)';
-                }
+                btn.classList.toggle('active', btn.dataset.tab === targetTab);
             });
 
             // Affichage du panneau correspondant
@@ -4007,7 +4257,7 @@
 
             // Application de la transition fluide
             smoothFadeUpdate(displayTotalEl, formattedTotal);
-            if (payText) smoothFadeUpdate(payText, `Pay ${formattedTotal}`);
+            if (payText) smoothFadeUpdate(payText, etbT('Pay %s').replace('%s', formattedTotal));
 
             payRoot.querySelectorAll('.etb-wallet-display-amount').forEach(el => {
                 smoothFadeUpdate(el, formattedTotal);
@@ -4021,7 +4271,7 @@
 
                 walletPaymentRequest.update({
                     total: {
-                        label: 'Mission ' + missionDisplayRef,
+                        label: etbT('Mission %s').replace('%s', missionDisplayRef),
                         amount: Math.round(newTotal * 100), // Montant en centimes incluant le pourboire
                     }
                 });
@@ -4174,7 +4424,7 @@
         // Vérification de Stripe
         if (typeof Stripe === 'undefined' || typeof etbAjax === 'undefined' || etbAjax.stripe_enabled !== '1' || !etbAjax.stripe_pk) {
             if (feedbackEl) {
-                feedbackEl.textContent = 'Payment gateway is currently in test mode or unconfigured.';
+                feedbackEl.textContent = etbT('Payment gateway is currently in test mode or unconfigured.');
                 feedbackEl.className = 'etb-chk-feedback is-error';
                 feedbackEl.style.display = 'block';
             }
@@ -4255,7 +4505,7 @@
                 country: (countryEl && countryEl.value) ? countryEl.value : 'FR',
                 currency: 'eur',
                 total: {
-                    label: 'Mission ' + missionDisplayRef, // Affiché dans la fenêtre Apple Pay / GPay
+                    label: etbT('Mission %s').replace('%s', missionDisplayRef), // Affiché dans la fenêtre Apple Pay / GPay
                     amount: Math.round(currentAmountVal * 100),
                 },
                 requestPayerName: true,
@@ -4323,7 +4573,7 @@
                     const intentRes = await fetch(etbAjax.ajax_url, { method: 'POST', body: intentData }).then(r => r.json());
                     if (!intentRes.success) {
                         ev.complete('fail');
-                        showPayFeedback(intentRes.data.message || 'Payment initialization failed.', 'error');
+                        showPayFeedback(intentRes.data.message || etbT('Payment initialization failed.'), 'error');
                         return;
                     }
 
@@ -4366,29 +4616,32 @@
                         const layoutEl = payRoot.querySelector('.etb-checkout-layout');
                         if (layoutEl) {
                             layoutEl.style.setProperty('display', 'block', 'important');
-                            layoutEl.innerHTML = '<div class="etb-checkout-card" style="text-align: center; padding: 50px 35px; border-color: #16a34a; max-width: 650px; margin: 0 auto; box-shadow: 0 10px 40px rgba(0,0,0,0.1);">'
-                                + '<div style="display: inline-flex; align-items: center; justify-content: center; width: 68px; height: 68px; background: rgba(34, 197, 94, 0.15); border: 2px solid #22c55e; border-radius: 50%; margin-bottom: 20px; color: #4ade80;">'
+                            layoutEl.innerHTML = '<div class="etb-checkout-card etb-success-card etb-success-card--wide">'
+                                + '<div class="etb-success-icon">'
                                 + '<svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>'
                                 + '</div>'
-                                + '<h2 style="color: #4ade80; font-size: 24px; font-weight: 800; margin: 0 0 10px 0;">Payment Authorized Successfully!</h2>'
-                                + '<p style="font-size: 15px; margin-bottom: 25px; line-height: 1.55;">'
-                                + 'Your payment of <strong>' + amountVal.toFixed(2) + ' €</strong> for Mission <strong>' + missionDisplayRef + '</strong> via <strong>' + walletBrand + '</strong> has been processed.'
+                                + '<h2 class="etb-success-title">' + etbT('Payment Authorized Successfully!') + '</h2>'
+                                + '<p class="etb-success-subtitle">'
+                                + etbT('Your payment of %s for Mission %s via %s has been processed.')
+                                    .replace('%s', () => '<strong>' + amountVal.toFixed(2) + ' ' + currencySym + '</strong>')
+                                    .replace('%s', () => '<strong>' + escapeHtml(missionDisplayRef) + '</strong>')
+                                    .replace('%s', () => '<strong>' + escapeHtml(walletBrand) + '</strong>')
                                 + '</p>'
-                                + '<div style="background: rgba(255,255,255,0.04); border: 1px solid var(--etb-border-light, rgba(255,255,255,0.1)); border-radius: 12px; padding: 18px 22px; margin-bottom: 30px; text-align: left; font-size: 13.5px; line-height: 1.6;">'
-                                + '<p style="margin: 6px 0;">An official paid confirmation receipt has been sent to <strong>' + (emailVal || 'your email') + '</strong>.</p>'
-                                + '<p style="margin: 6px 0;">Your chauffeur will send an SMS update prior to pickup.</p>'
+                                + '<div class="etb-success-details">'
+                                + '<p>' + etbT('An official paid confirmation receipt has been sent to %s.').replace('%s', () => '<strong>' + (escapeHtml(emailVal) || etbT('your email')) + '</strong>') + '</p>'
+                                + '<p>' + etbT('Your chauffeur will send an SMS update prior to pickup.') + '</p>'
                                 + '</div>'
-                                + '<a href="' + (etbAjax.home_url || '/') + '" class="etb-chk-submit-btn" style="text-decoration: none; display: inline-flex; width: auto; padding: 14px 35px;">Return to Home</a>'
+                                + '<a href="' + encodeURI(etbAjax.home_url || '/') + '" class="etb-chk-submit-btn etb-success-btn">' + etbT('Return to Home') + '</a>'
                                 + '</div>';
                             payRoot.scrollIntoView({ behavior: 'smooth', block: 'start' });
                         }
                     } else {
-                        showPayFeedback(settleRes.data.message || 'Payment registered but dispatch update failed.', 'error');
+                        showPayFeedback(settleRes.data.message || etbT('Payment registered but dispatch update failed.'), 'error');
                     }
                 } catch (err) {
                     console.error('Wallet error:', err);
                     ev.complete('fail');
-                    showPayFeedback('Communication error during wallet processing.', 'error');
+                    showPayFeedback(etbT('Communication error during wallet processing.'), 'error');
                 }
             });
         }
@@ -4409,24 +4662,24 @@
 
                 // Validations obligatoires
                 if (!emailVal || !emailVal.includes('@')) {
-                    showPayFeedback('Please enter a valid email address to receive your receipt.', 'error');
+                    showPayFeedback(etbT('Please enter a valid email address to receive your receipt.'), 'error');
                     payRoot.querySelector('#etb-pay-email')?.focus();
                     return;
                 }
                 if (!cardholderVal) {
-                    showPayFeedback('Please enter the name on the card.', 'error');
+                    showPayFeedback(etbT('Please enter the name on the card.'), 'error');
                     payRoot.querySelector('#etb-pay-cardholder')?.focus();
                     return;
                 }
                 if (amountVal <= 0) {
-                    showPayFeedback('Invalid payment amount.', 'error');
+                    showPayFeedback(etbT('Invalid payment amount.'), 'error');
                     return;
                 }
 
                 // Verrouillage du bouton pendant l'autorisation bancaire
-                const originalBtnText = payText ? payText.textContent : 'Pay Now';
+                const originalBtnText = payText ? payText.textContent : etbT('Pay Now');
                 payBtn.disabled = true;
-                if (payText) payText.textContent = 'Authorizing payment...';
+                if (payText) payText.textContent = etbT('Authorizing payment...');
 
                 try {
                   
@@ -4450,7 +4703,7 @@
                     if (!intentRes.success) {
                         payBtn.disabled = false;
                         if (payText) payText.textContent = originalBtnText;
-                        showPayFeedback(intentRes.data.message || 'Payment initialization failed.', 'error');
+                        showPayFeedback(intentRes.data.message || etbT('Payment initialization failed.'), 'error');
                         return;
                     }
 
@@ -4469,12 +4722,12 @@
                     if (confirmRes.error) {
                         payBtn.disabled = false;
                         if (payText) payText.textContent = originalBtnText;
-                        showPayFeedback(confirmRes.error.message || 'Payment authorization failed.', 'error');
+                        showPayFeedback(confirmRes.error.message || etbT('Payment authorization failed.'), 'error');
                         return;
                     }
 
                     // ÉTAPE C : Clôture officielle de la mission dans WordPress & LimoExpress
-                    if (payText) payText.textContent = 'Confirming mission...';
+                    if (payText) payText.textContent = etbT('Confirming mission...');
 
                     const paymentIntent = confirmRes.paymentIntent;
                     let last4 = '4242';
@@ -4511,32 +4764,34 @@
                         const layoutEl = payRoot.querySelector('.etb-checkout-layout');
                         if (layoutEl) {
                             layoutEl.style.setProperty('display', 'block', 'important');
-                            layoutEl.innerHTML = '<div class="etb-checkout-card" style="text-align: center; padding: 50px 35px; border-color: #16a34a; max-width: 650px; margin: 0 auto; box-shadow: 0 10px 40px rgba(0,0,0,0.1);">'
-                                + '<div style="display: inline-flex; align-items: center; justify-content: center; width: 68px; height: 68px; background: rgba(34, 197, 94, 0.15); border: 2px solid #22c55e; border-radius: 50%; margin-bottom: 20px; color: #4ade80;">'
+                            layoutEl.innerHTML = '<div class="etb-checkout-card etb-success-card etb-success-card--wide">'
+                                + '<div class="etb-success-icon">'
                                 + '<svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>'
                                 + '</div>'
-                                + '<h2 style="color: #4ade80; font-size: 24px; font-weight: 800; margin: 0 0 10px 0;">Payment Authorized Successfully!</h2>'
-                                + '<p style="font-size: 15px; margin-bottom: 25px; line-height: 1.55;">'
-                                + 'Your payment of <strong>' + amountVal.toFixed(2) + ' €</strong> for Mission <strong>' + missionRef + '</strong> has been processed.'
+                                + '<h2 class="etb-success-title">' + etbT('Payment Authorized Successfully!') + '</h2>'
+                                + '<p class="etb-success-subtitle">'
+                                + etbT('Your payment of %s for Mission %s has been processed.')
+                                    .replace('%s', () => '<strong>' + amountVal.toFixed(2) + ' ' + currencySym + '</strong>')
+                                    .replace('%s', () => '<strong>' + escapeHtml(missionRef) + '</strong>')
                                 + '</p>'
-                                + '<div style="background: rgba(255,255,255,0.04); border: 1px solid var(--etb-border-light, rgba(255,255,255,0.1)); border-radius: 12px; padding: 18px 22px; margin-bottom: 30px; text-align: left; font-size: 13.5px; line-height: 1.6;">'
-                                + '<p style="margin: 6px 0;">An official paid confirmation receipt has been sent to <strong>' + emailVal + '</strong>.</p>'
-                                + '<p style="margin: 6px 0;">Your chauffeur has received the mission in dispatch.</p>'
+                                + '<div class="etb-success-details">'
+                                + '<p>' + etbT('An official paid confirmation receipt has been sent to %s.').replace('%s', () => '<strong>' + escapeHtml(emailVal) + '</strong>') + '</p>'
+                                + '<p>' + etbT('Your chauffeur has received the mission in dispatch.') + '</p>'
                                 + '</div>'
-                                + '<a href="' + (etbAjax.home_url || '/') + '" class="etb-chk-submit-btn" style="text-decoration: none; display: inline-flex; width: auto; padding: 14px 35px;">Return to Home</a>'
+                                + '<a href="' + encodeURI(etbAjax.home_url || '/') + '" class="etb-chk-submit-btn etb-success-btn">' + etbT('Return to Home') + '</a>'
                                 + '</div>';
                             payRoot.scrollIntoView({ behavior: 'smooth', block: 'start' });
                         }
                     } else {
                         payBtn.disabled = false;
                         if (payText) payText.textContent = originalBtnText;
-                        showPayFeedback(settleRes.data?.message || 'Payment registered, but dispatch status update failed.', 'error');
+                        showPayFeedback(settleRes.data?.message || etbT('Payment registered, but dispatch status update failed.'), 'error');
                     }
                 } catch (err) {
                     console.error('Credit card payment error:', err);
                     payBtn.disabled = false;
                     if (payText) payText.textContent = originalBtnText;
-                    showPayFeedback('Communication error during payment. Please try again.', 'error');
+                    showPayFeedback(etbT('Communication error during payment. Please try again.'), 'error');
                 }
             });
         }

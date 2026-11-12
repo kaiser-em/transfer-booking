@@ -1,6 +1,6 @@
 # Elite Transfer Booking (ETB)
 
-![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)
+![Version](https://img.shields.io/badge/version-1.1.0-blue.svg)
 ![WordPress](https://img.shields.io/badge/WordPress-5.8%2B-21759b.svg)
 ![PHP](https://img.shields.io/badge/PHP-7.4%2B-777bb4.svg)
 ![License](https://img.shields.io/badge/license-Proprietary-red.svg)
@@ -61,7 +61,7 @@ A premium, high-end WordPress booking engine designed for private chauffeur and 
 1. Download the `elite-transfer-booking` folder.
 2. Upload it to the `/wp-content/plugins/` directory of your WordPress installation.
 3. Activate the plugin through the 'Plugins' menu in WordPress.
-4. Upon activation, the plugin will automatically create the necessary database tables and Custom Post Types (CPTs).
+4. Upon activation, the plugin registers its Custom Post Types (CPTs) and flushes rewrite rules. No custom database tables are required.
 
 ---
 

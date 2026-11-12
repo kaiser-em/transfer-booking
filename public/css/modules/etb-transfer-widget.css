@@ -191,7 +191,7 @@
     background: var(--etb-bg-glass, #0b0f19) !important;
     backdrop-filter: blur(18px) !important;
     -webkit-backdrop-filter: blur(18px) !important;
-    border: 1px solid var(--etb-border-main, rgba(255, 255, 255, 0.16)) !important;
+    border: 2px solid var(--etb-border-main, rgba(255, 255, 255, 0.16)) !important;
     /*box-shadow: var(--etb-shadow-base, 0 10px 30px rgba(0, 0, 0, 0.1)) !important;*/
     border-radius: 16px !important;
     padding: 18px 24px !important;
@@ -463,12 +463,12 @@
 }
 
 .etb-quick-fleet-heading {
-    font-family: 'calibri', sans-serif !important;
+    font-family: inter, sans-serif !important;
     font-size: 20px !important;
-    font-weight: 800 !important;
-    color: #fefefe !important;
+    font-weight: 600 !important;
+    color: var(--etb-text-secondary) !important;
     margin-bottom: 22px !important;
-    text-transform: uppercase !important;
+    
     letter-spacing: 0.08em !important;
     display: flex !important;
     align-items: center !important;
@@ -491,7 +491,7 @@
 /* 1. Carte globale : Bords arrondis 20px, zéro padding extérieur pour l'image */
 .etb-quick-car-item {
     background: var(--etb-bg-card, #111622) !important;
-    border: 1.5px solid var(--etb-border-main, #232a3b) !important;
+    border: 2px solid var(--etb-border-main, #232a3b) !important;
     border-radius: 20px !important;
     padding: 0 !important;
     cursor: pointer !important;
@@ -504,7 +504,7 @@
     min-width: 290px !important;
     width: 100% !important;
     overflow: hidden !important;
-    box-shadow: var(--etb-shadow-base, 0 10px 30px rgba(0, 0, 0, 0.08)) !important;
+    /*box-shadow: var(--etb-shadow-base, 0 10px 30px rgba(0, 0, 0, 0.08)) !important;*/
     transition: all 0.3s cubic-bezier(0.25, 1, 0.5, 1) !important;
 }
 
@@ -521,7 +521,7 @@
 
 .etb-quick-car-item.selected {
     border-color: var(--etb-accent-gold, #fbac18) !important;
-    background: var(--etb-bg-card-hover, #141b2b) !important;
+   
     box-shadow: 0 0 0 2px var(--etb-accent-gold, #fbac18), 0 16px 40px rgba(251, 172, 24, 0.25) !important;
 }
 
@@ -558,7 +558,7 @@
     backdrop-filter: blur(8px) !important;
     -webkit-backdrop-filter: blur(8px) !important;
     border: 1px solid rgba(179, 179, 179, 0.1) !important;
-    color: #8b8b8b !important;
+    color: var(--etb-text-secondary) !important;
     font-size: 10px !important;
     font-weight: 700 !important;
     padding: 4px 12px !important;
@@ -572,10 +572,10 @@
     position: absolute !important;
     top: 14px !important;
     right: 14px !important;
-    width: 22px !important;
-    height: 22px !important;
+    width: 24px !important;
+    height: 24px !important;
     background: #fbac18 !important;
-    color: #0f172a !important;
+    color: #0f172a !important; /* Couleur de la coche (noir/gris très foncé) */
     border-radius: 50% !important;
     display: flex !important;
     align-items: center !important;
@@ -584,7 +584,24 @@
     transform: scale(0.5) !important;
     transition: all 0.25s ease !important;
     z-index: 10 !important;
-    padding-right: 2px !important;
+    padding: 0 !important; /* On retire l'ancien padding qui décalait l'icône */
+    margin: 0 !important;
+    box-sizing: border-box !important;
+}
+
+/* Sécurité anti-thème pour le SVG */
+.etb-quick-card-check svg {
+    display: block !important;
+    width: 14px !important;
+    height: 14px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    pointer-events: none !important; /* Empêche le SVG de bloquer le clic sur la carte */
+}
+
+.etb-quick-car-item.selected .etb-quick-card-check {
+    opacity: 1 !important;
+    transform: scale(1) !important;
 }
 
 .etb-quick-car-item.selected .etb-quick-card-check {
@@ -668,7 +685,7 @@
     align-items: center !important;
     gap: 12px !important;
     font-size: 13px !important;
-    color: #94a3b8 !important;
+    color: var(--etb-text-secondary) !important;
     margin-bottom: 12px !important;
 }
 
@@ -721,7 +738,7 @@
     background: var(--etb-bg-input, rgba(255, 255, 255, 0.04)) !important;
     border: 1px solid var(--etb-border-input, rgba(255, 255, 255, 0.1)) !important;
     border-radius: 20px !important;
-    padding: 5px 12px !important;
+    padding: 0px 12px !important;
     font-size: 11px !important;
     font-weight: 600 !important;
     color: var(--etb-text-secondary, #cbd5e1) !important;
@@ -831,6 +848,7 @@
 .etb-quick-price-box {
     display: flex !important;
     flex-direction: column !important;
+    width: 100%;
 }
 
 .etb-quick-price-display {
@@ -2007,6 +2025,14 @@
     display: inline-block !important;
     width: fit-content !important;
 }
+/* ==========================================================================
+   RÉDUCTION DE LA LARGEUR DU CHAMP DURÉE (MODE À L'HEURE)
+   ========================================================================== */
+#etb-quick-duration-col {
+    flex: 0 0 auto !important; /* Empêche le champ de prendre tout l'espace disponible */
+    max-width: 120px !important; /* Réduit la largeur (ajustez à 130px ou 110px si besoin) */
+    min-width: 100px !important; /* Assure que le texte "X Hours" ne soit pas coupé */
+}
 
 /* ── RESPONSIVE MOBILE : Empilement propre ── */
 @media (max-width: 992px) {
@@ -2071,6 +2097,11 @@
         width: 100% !important;
     }
 
+    #etb-quick-duration-col{
+        max-width: 100% !important;
+        width: 100% !important;
+    }
+
 }
 
 
@@ -2099,11 +2130,103 @@
     }
 }
 
-/* ==========================================================================
-   RÉDUCTION DE LA LARGEUR DU CHAMP DURÉE (MODE À L'HEURE)
-   ========================================================================== */
-#etb-quick-duration-col {
-    flex: 0 0 auto !important; /* Empêche le champ de prendre tout l'espace disponible */
-    max-width: 120px !important; /* Réduit la largeur (ajustez à 130px ou 110px si besoin) */
-    min-width: 100px !important; /* Assure que le texte "X Hours" ne soit pas coupé */
+
+
+#etb-quick-upon-request-notice{
+    border: 1px solid rgb(255 24 79 / 91%);
+    border-radius: 10px;
+    padding: 12px 16px;
+    margin: 18px 0px;
+    font-size: 12px;
+    line-height: 1.45;
+    text-align: center; 
+    width: 60%;
+ }
+
+
+
+[data-etb-theme="light"] #etb-quick-upon-request-notice{
+    background: rgba(230, 90, 21, 0.12) !important;
+    border-color: #fbac18 !important;
+    color: #b45309 !important;
+    font-weight: bold;
 }
+
+[data-etb-theme="dark"] #etb-quick-upon-request-notice{
+    background: rgba(251, 172, 24, 0.12) !important;
+    border-color: #fbac18 !important;
+    color: #fbac18 !important;
+   
+}
+
+/* ==========================================================================
+   RÉDUCTION DE LA TAILLE DU PRIX POUR UPON REQUEST / CUSTOM QUOTE
+   ========================================================================== */
+
+/* Cible spécifiquement les cartes qui ont l'attribut data-is-upon-request="1" */
+.etb-quick-car-item[data-is-upon-request="1"] .etb-quick-amount {
+    font-size: 20px !important; /* Réduit la taille du prix */
+    color: var(--etb-text-primary, #ffffff) !important;
+}
+
+.etb-quick-car-item[data-is-upon-request="1"] .etb-quick-currency {
+    font-size: 14px !important; /* Réduit la taille du symbole € */
+    color: var(--etb-text-secondary, #94a3b8) !important;
+    margin-right: 4px !important;
+}
+
+/* Force l'alignement sur une seule ligne pour que le badge ne passe pas en dessous */
+.etb-quick-car-item[data-is-upon-request="1"] .etb-quick-price-display {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    flex-wrap: nowrap !important; /* Empêche le retour à la ligne */
+    gap: 6px !important;
+    margin-bottom: 6px !important;
+}
+
+/* Ajuste le badge pour qu'il soit compact */
+.etb-quick-car-item[data-is-upon-request="1"] .etb-quick-quote-badge {
+    font-size: 9px !important;
+    padding: 4px 8px !important;
+    white-space: nowrap !important;
+    margin-top: 0 !important;
+    margin-left: auto !important;
+}
+
+.etb-quick-car-item[data-is-upon-request="1"] .etb-quick-select-btn{
+    display: none !important;
+}
+
+/*
+etb-chk-upon-request-notice
+    background: rgba(251, 172, 24, 0.15) !important;
+    border-color: #fbac18 !important;
+    color: #b45309 !important;
+
+
+    dark 
+    background: rgba(251, 172, 24, 0.12) !important;
+    border-color: #fbac18 !important;
+    color: #fbac18 !important;
+    font-weight: 700 !important;
+
+
+style="display: none;background: rgb(145 11 11 / 84%);
+border: 1px solid rgb(255 24 79 / 91%);
+border-radius: 10px;
+padding: 12px 16px;
+margin: 18px 0px;
+font-size: 12px;color:#ffffff;
+line-height: 1.45;
+text-align: center; width: 60%;
+
+
+style="display: none; 
+background: rgba(251, 172, 24, 0.12);
+ border: 1px solid rgba(251, 172, 24, 0.5); 
+ border-radius: 10px; padding: 12px 16px; margin: 18px 0px; 
+ font-size: 12px; color: var(--etb-text-primary); 
+ line-height: 1.45; 
+ text-align: center; width: 60%;
+    */

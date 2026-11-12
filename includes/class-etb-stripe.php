@@ -14,6 +14,74 @@ class ETB_Stripe {
     }
 
     /**
+     * Récupère le secret de signature du endpoint webhook (whsec_...).
+     * Distinct de la clé API : Stripe signe les événements avec ce secret.
+     */
+    public static function get_webhook_secret() {
+        $settings = get_option( 'etb_general_settings', array() );
+        return ! empty( $settings['stripe_webhook_secret'] ) ? trim( $settings['stripe_webhook_secret'] ) : '';
+    }
+
+    /**
+     * Vérifie la signature d'un webhook Stripe sans dépendre du SDK PHP.
+     *
+     * En-tête attendu : "t=1234567890,v1=abcdef..."
+     * Charge signée    : "{t}.{payload}", HMAC-SHA256 avec le secret whsec_.
+     *
+     * @param string $payload    Corps brut de la requête
+     * @param string $sig_header Valeur de HTTP_STRIPE_SIGNATURE
+     * @param string $secret     Secret du endpoint (whsec_...)
+     * @param int    $tolerance  Tolérance en secondes (anti-rejeu)
+     * @return bool
+     */
+    public static function verify_webhook_signature( $payload, $sig_header, $secret = '', $tolerance = 300 ) {
+        if ( '' === (string) $payload || '' === (string) $sig_header ) {
+            return false;
+        }
+
+        if ( '' === $secret ) {
+            $secret = self::get_webhook_secret();
+        }
+        if ( '' === $secret ) {
+            return false;
+        }
+
+        $timestamp  = null;
+        $signatures = array();
+
+        foreach ( explode( ',', $sig_header ) as $part ) {
+            $pair = explode( '=', trim( $part ), 2 );
+            if ( 2 !== count( $pair ) ) {
+                continue;
+            }
+            if ( 't' === $pair[0] ) {
+                $timestamp = (int) $pair[1];
+            } elseif ( 'v1' === $pair[0] ) {
+                $signatures[] = $pair[1];
+            }
+        }
+
+        if ( empty( $timestamp ) || empty( $signatures ) ) {
+            return false;
+        }
+
+        // Tolérance anti-rejeu (horloge serveur vs timestamp Stripe)
+        if ( abs( time() - $timestamp ) > (int) $tolerance ) {
+            return false;
+        }
+
+        $expected = hash_hmac( 'sha256', $timestamp . '.' . $payload, $secret );
+
+        foreach ( $signatures as $signature ) {
+            if ( hash_equals( $expected, $signature ) ) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * Exécute une requête HTTP sécurisée vers l'API REST Stripe
      */
     private static function request( $endpoint, $method = 'POST', $data = array() ) {

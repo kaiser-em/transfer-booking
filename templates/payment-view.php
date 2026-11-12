@@ -5,11 +5,12 @@ $gen_settings    = get_option( 'etb_general_settings', array() );
 $currency_symbol = ! empty( $gen_settings['currency'] ) ? sanitize_text_field( $gen_settings['currency'] ) : '€';
 
 // Lecture dynamique des paramètres d'entreprise (Zéro Hardcode)
-$legal_name   = ! empty( $gen_settings['company_legal_name'] ) ? sanitize_text_field( $gen_settings['company_legal_name'] ) : '"EDEN CAB" Ltd';
-$sub_brand    = ! empty( $gen_settings['company_subtitle'] ) ? sanitize_text_field( $gen_settings['company_subtitle'] ) : 'superior drive';
-$addr_line1   = ! empty( $gen_settings['company_address_line1'] ) ? sanitize_text_field( $gen_settings['company_address_line1'] ) : '250 avenue de Grasse';
-$addr_line2   = ! empty( $gen_settings['company_address_line2'] ) ? sanitize_text_field( $gen_settings['company_address_line2'] ) : 'Cannes 06400, France';
+$legal_name   = ! empty( $gen_settings['company_legal_name'] ) ? sanitize_text_field( $gen_settings['company_legal_name'] ) : get_bloginfo( 'name' );
+$sub_brand    = ! empty( $gen_settings['company_subtitle'] ) ? sanitize_text_field( $gen_settings['company_subtitle'] ) : '';
+$addr_line1   = ! empty( $gen_settings['company_address_line1'] ) ? sanitize_text_field( $gen_settings['company_address_line1'] ) : '';
+$addr_line2   = ! empty( $gen_settings['company_address_line2'] ) ? sanitize_text_field( $gen_settings['company_address_line2'] ) : '';
 $uploaded_logo= ! empty( $gen_settings['company_logo_url'] ) ? esc_url( $gen_settings['company_logo_url'] ) : '';
+$terms_url    = ! empty( $gen_settings['terms_url'] ) ? esc_url( $gen_settings['terms_url'] ) : '';
 $company_name = get_bloginfo( 'name' );
 
 // 1. Détection du dossier via Quote/Payment Token ou paramètres signés
@@ -82,20 +83,13 @@ if ( $url_amount > 0 ) {
             $child_seats_fee = floatval( get_post_meta( $booking_id, '_etb_child_seat_fee', true ) );
 
             // Le total LimoExpress = Tarif transport + Sièges enfants
+            // Lecture seule : aucune écriture de meta pendant le rendu de la page.
             $settled_amount = $live_limo_price + $child_seats_fee;
-            update_post_meta( $booking_id, '_etb_base_price', $live_limo_price );
-            update_post_meta( $booking_id, '_etb_total_price', $settled_amount );
-
-            // Sauvegarde de l'UUID réel de la course pour le paiement final
-            if ( ! empty( $limo_check['uuid'] ) ) {
-                update_post_meta( $booking_id, '_etb_limo_uuid', $limo_check['uuid'] );
-            }
         }
 
         // Détection si la course a été marquée payée directement dans LimoExpress
         if ( ! empty( $limo_check['paid'] ) ) {
             $is_already_paid = true;
-            update_post_meta( $booking_id, '_etb_status', 'confirmed' );
         }
     }
 }
@@ -184,9 +178,9 @@ if ( $has_valid_booking && ! $is_tampered ) {
 $formatted_pay_datetime = '—';
 if ( ! empty( $booking_date ) ) {
     $dt_ts = strtotime( $booking_date );
-    $formatted_pay_datetime = $dt_ts ? date( 'd M. Y', $dt_ts ) : $booking_date;
+    $formatted_pay_datetime = $dt_ts ? ETB_I18n::date( 'd M. Y', $dt_ts ) : $booking_date;
     if ( ! empty( $booking_time ) ) {
-        $formatted_pay_datetime .= ' at ' . $booking_time;
+        $formatted_pay_datetime .= ETB_I18n::t( ' at ' ) . $booking_time;
     }
 }
 
@@ -197,7 +191,7 @@ $formatted_amount = number_format_i18n( $settled_amount, 2 ) . ' ' . $currency_s
     
     <!-- Bouton bascule Dark / Light mode (flottant en haut à droite) -->
     <div style="display: flex; justify-content: flex-end; margin-bottom: 20px;">
-        <button type="button" class="etb-theme-toggle-btn etb-theme-switch" aria-label="Toggle theme">
+        <button type="button" class="etb-theme-toggle-btn etb-theme-switch" aria-label="<?php echo esc_attr( ETB_I18n::t( 'Toggle theme' ) ); ?>">
             <span class="etb-switch-track">
                 <svg class="etb-icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                     <circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line>
@@ -212,46 +206,49 @@ $formatted_amount = number_format_i18n( $settled_amount, 2 ) . ' ' . $currency_s
 
     <?php if ( $is_tampered ) : ?>
         <!-- Alerte de sécurité si lien falsifié ou altéré -->
-        <div class="etb-checkout-card" style="text-align: center; padding: 45px 30px; border-color: #dc2626; max-width: 600px; margin: 0 auto;">
-            <div style="display: inline-flex; align-items: center; justify-content: center; width: 64px; height: 64px; background: rgba(220, 38, 38, 0.15); border: 2px solid #ef4444; border-radius: 50%; margin-bottom: 18px; color: #f87171;">
-                <span class="dashicons dashicons-shield" style="font-size: 32px; width: 32px; height: 32px;"></span>
+        <div class="etb-pay-alert etb-pay-alert--danger">
+            <div class="etb-pay-alert-icon">
+                <span class="dashicons dashicons-shield"></span>
             </div>
-            <h2 style="color: #ef4444; font-size: 22px; font-weight: 800; margin: 0 0 8px 0;">Security Verification Failed</h2>
-            <p style="font-size: 14px; color: var(--etb-text-secondary, #94a3b8); margin-bottom: 20px; line-height: 1.5;">
-                This payment link is invalid, expired, or has been altered. For security reasons, the transaction cannot proceed.
+            <h2><?php echo esc_html( ETB_I18n::t( 'Security Verification Failed' ) ); ?></h2>
+            <p>
+                <?php echo esc_html( ETB_I18n::t( 'This payment link is invalid, expired, or has been altered. For security reasons, the transaction cannot proceed.' ) ); ?>
             </p>
-            <p style="font-size: 13px; color: var(--etb-text-secondary, #94a3b8); margin-bottom: 25px;">
-                Please contact our dispatch regulation via WhatsApp or email to receive a verified settlement link.
+            <p>
+                <?php echo esc_html( ETB_I18n::t( 'Please contact our dispatch regulation via WhatsApp or email to receive a verified settlement link.' ) ); ?>
             </p>
-            <a href="<?php echo esc_url( home_url( '/' ) ); ?>" class="etb-chk-submit-btn" style="text-decoration: none; display: inline-flex; width: auto; padding: 12px 30px;">
-                Return to Home
+            <a href="<?php echo esc_url( home_url( '/' ) ); ?>" class="etb-chk-submit-btn etb-success-btn">
+                <?php echo esc_html( ETB_I18n::t( 'Return to Home' ) ); ?>
             </a>
         </div>
     <?php elseif ( $is_already_paid ) : ?>
-        <div class="etb-checkout-card" style="text-align: center; padding: 45px 30px; border-color: #16a34a; max-width: 600px; margin: 0 auto;">
-            <div style="display: inline-flex; align-items: center; justify-content: center; width: 64px; height: 64px; background: rgba(34, 197, 94, 0.15); border: 2px solid #22c55e; border-radius: 50%; margin-bottom: 18px; color: #4ade80;">
+        <div class="etb-pay-alert etb-pay-alert--success">
+            <div class="etb-pay-alert-icon">
                 <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
             </div>
-            <?php 
+            <?php
             $settled_ref = get_post_meta( $booking_id, '_etb_limo_booking_id', true );
             $display_settled_ref = ( ! empty( $settled_ref ) && 'OK' !== $settled_ref ) ? $settled_ref : ( '#' . $booking_id );
             ?>
-            <h2 style="color: #4ade80; font-size: 22px; font-weight: 800; margin: 0 0 8px 0;">Mission Already Settled</h2>
-            <p style="font-size: 14px; margin-bottom: 20px;">
-                Mission #<?php echo esc_html( $display_settled_ref ); ?> has been paid in full and confirmed in dispatch.
-            </p>            <a href="<?php echo esc_url( home_url( '/' ) ); ?>" class="etb-chk-submit-btn" style="text-decoration: none; display: inline-flex; width: auto; padding: 12px 30px;">
-                Return to Home
+            <h2><?php echo esc_html( ETB_I18n::t( 'Mission Already Settled' ) ); ?></h2>
+            <p>
+                <?php echo esc_html( sprintf( ETB_I18n::t( 'Mission #%s has been paid in full and confirmed in dispatch.' ), $display_settled_ref ) ); ?>
+            </p>
+            <a href="<?php echo esc_url( home_url( '/' ) ); ?>" class="etb-chk-submit-btn etb-success-btn">
+                <?php echo esc_html( ETB_I18n::t( 'Return to Home' ) ); ?>
             </a>
         </div>
     <?php elseif ( $settled_amount <= 0 ) : ?>
-        <div class="etb-checkout-card" style="text-align: center; padding: 40px 20px; border-color: #eab308; max-width: 600px; margin: 0 auto;">
-            <span class="dashicons dashicons-clock" style="font-size: 42px; width: 42px; height: 42px; color: #eab308; margin-bottom: 15px;"></span>
-            <h2 style="font-size: 20px; font-weight: 800; margin: 0 0 8px 0;">Quotation in Progress</h2>
-            <p style="font-size: 14px; max-width: 500px; margin: 0 auto 20px auto;">
-                Our dispatch team is currently calculating your route pricing. You will receive an offer link as soon as the quotation is finalized.
+        <div class="etb-pay-alert etb-pay-alert--warning">
+            <div class="etb-pay-alert-icon">
+                <span class="dashicons dashicons-clock"></span>
+            </div>
+            <h2><?php echo esc_html( ETB_I18n::t( 'Quotation in Progress' ) ); ?></h2>
+            <p>
+                <?php echo esc_html( ETB_I18n::t( 'Our dispatch team is currently calculating your route pricing. You will receive an offer link as soon as the quotation is finalized.' ) ); ?>
             </p>
-            <a href="<?php echo esc_url( home_url( '/' ) ); ?>" class="etb-chk-submit-btn" style="text-decoration: none; display: inline-flex; width: auto; padding: 12px 30px;">
-                Return to Home
+            <a href="<?php echo esc_url( home_url( '/' ) ); ?>" class="etb-chk-submit-btn etb-success-btn">
+                <?php echo esc_html( ETB_I18n::t( 'Return to Home' ) ); ?>
             </a>
         </div>
     <?php else : ?>
@@ -280,9 +277,9 @@ $formatted_amount = number_format_i18n( $settled_amount, 2 ) . ' ' . $currency_s
                         
                         <div style="display: flex; align-items: center; gap: 14px;">
                             <?php if ( ! empty( $display_logo_url ) ) : ?>
-                                <img src="<?php echo esc_url( $display_logo_url ); ?>" alt="EDEN CAB" style="max-height: 48px; max-width: 130px; object-fit: contain;">
+                                <img src="<?php echo esc_url( $display_logo_url ); ?>" alt="<?php echo esc_attr( $legal_name ); ?>" style="max-height: 48px; max-width: 130px; object-fit: contain;">
                             <?php else : ?>
-                                <div style="width: 44px; height: 44px; border-radius: 10px; background: rgba(251, 172, 24, 0.12); border: 1.5px solid #fbac18; display: flex; align-items: center; justify-content: center; color: #fbac18; flex-shrink: 0;">
+                                <div style="width: 44px; height: 44px; border-radius: 10px; background: var(--etb-brand-soft); border: 1.5px solid var(--etb-brand); display: flex; align-items: center; justify-content: center; color: var(--etb-accent-gold); flex-shrink: 0;">
                                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                         <path d="M14 16H9m10 0h3v-3.15a1 1 0 0 0-.84-.99L16 11l-2.7-3.6a1 1 0 0 0-.8-.4H5.24a2 2 0 0 0-1.8 1.1l-.8 1.63A6 6 0 0 0 2 12.42V16h2"/>
                                         <circle cx="6.5" cy="16.5" r="2.5"/>
@@ -293,7 +290,7 @@ $formatted_amount = number_format_i18n( $settled_amount, 2 ) . ' ' . $currency_s
 
                             <!-- Nom de marque & Slogan -->
                             <div class="etb-payment-logo-wrap" style="display: flex; flex-direction: column;">
-                                <span class="etb-payment-brand-title" style="font-size: 20px; font-weight: 900; letter-spacing: 0.08em; color: var(--etb-text-primary, #ffffff); line-height: 1.1;">EDEN CAB</span>
+                                <span class="etb-payment-brand-title" style="font-size: 20px; font-weight: 900; letter-spacing: 0.08em; color: var(--etb-text-primary, #ffffff); line-height: 1.1;"><?php echo esc_html( $legal_name ); ?></span>
                                 <span class="etb-payment-brand-sub" style="font-size: 11px; color: var(--etb-accent-gold, #fbac18); text-transform: uppercase; letter-spacing: 0.14em; font-weight: 800; margin-top: 3px;"><?php echo esc_html( $sub_brand ); ?></span>
                             </div>
                         </div>
@@ -307,7 +304,7 @@ $formatted_amount = number_format_i18n( $settled_amount, 2 ) . ' ' . $currency_s
 
                     <!-- Montant principal & Décomposition dynamique en anglais -->
                     <div style="margin-bottom: 24px;">
-                        <span style="font-size: 12px; font-weight: 700; text-transform: uppercase; color: var(--etb-text-secondary, #94a3b8); letter-spacing: 0.05em;">Total Amount</span>
+                        <span style="font-size: 12px; font-weight: 700; text-transform: uppercase; color: var(--etb-text-secondary, #94a3b8); letter-spacing: 0.05em;"><?php echo esc_html( ETB_I18n::t( 'Total Amount' ) ); ?></span>
                         <div id="etb-pay-display-total" style="font-size: 38px; font-weight: 900; color: var(--etb-accent-gold, #fbac18); letter-spacing: -1px; margin-top: 2px;">
                             <?php echo esc_html( $formatted_amount ); ?>
                         </div>
@@ -317,20 +314,20 @@ $formatted_amount = number_format_i18n( $settled_amount, 2 ) . ' ' . $currency_s
                             <?php if ( $fee_baby > 0 ) : ?>
                                 <div style="display: flex; align-items: center; gap: 6px; color: var(--etb-text-primary, #fbac18);">
                                     <span>•</span>
-                                    <span>Includes <strong>+<?php echo number_format_i18n( $fee_baby, 2 ); ?> <?php echo esc_html( $currency_symbol ); ?></strong> Extra Baby Seat (x<?php echo esc_html( $paid_baby ); ?>)</span>
+                                    <span><?php echo esc_html( ETB_I18n::t( 'Includes' ) ); ?> <strong>+<?php echo number_format_i18n( $fee_baby, 2 ); ?> <?php echo esc_html( $currency_symbol ); ?></strong> <?php echo esc_html( sprintf( ETB_I18n::t( 'Extra Baby Seat (x%s)' ), $paid_baby ) ); ?></span>
                                 </div>
                             <?php endif; ?>
 
                             <?php if ( $fee_booster > 0 ) : ?>
                                 <div style="display: flex; align-items: center; gap: 6px; color: var(--etb-text-primary, #fbac18);">
                                     <span>•</span>
-                                    <span>Includes <strong>+<?php echo number_format_i18n( $fee_booster, 2 ); ?> <?php echo esc_html( $currency_symbol ); ?></strong> Extra Booster Seat (x<?php echo esc_html( $paid_booster ); ?>)</span>
+                                    <span><?php echo esc_html( ETB_I18n::t( 'Includes' ) ); ?> <strong>+<?php echo number_format_i18n( $fee_booster, 2 ); ?> <?php echo esc_html( $currency_symbol ); ?></strong> <?php echo esc_html( sprintf( ETB_I18n::t( 'Extra Booster Seat (x%s)' ), $paid_booster ) ); ?></span>
                                 </div>
                             <?php endif; ?>
 
-                            <div id="etb-pay-display-tip-line" style="display: <?php echo ( $saved_tip_amount > 0 ) ? 'flex' : 'none'; ?>; align-items: center; gap: 6px; color: #4ade80;">
+                            <div id="etb-pay-display-tip-line" style="display: <?php echo ( $saved_tip_amount > 0 ) ? 'flex' : 'none'; ?>; align-items: center; gap: 6px; color: var(--etb-success);">
                                 <span>•</span>
-                                <span>Includes <strong id="etb-pay-display-tip-text">+<?php echo number_format_i18n( $saved_tip_amount, 2 ); ?> <?php echo esc_html( $currency_symbol ); ?></strong> Driver Tip (<span id="etb-pay-display-tip-pct"><?php echo esc_html( $saved_tip_percent ); ?>%</span>)</span>
+                                <span><?php echo esc_html( ETB_I18n::t( 'Includes' ) ); ?> <strong id="etb-pay-display-tip-text">+<?php echo number_format_i18n( $saved_tip_amount, 2 ); ?> <?php echo esc_html( $currency_symbol ); ?></strong> <?php echo esc_html( ETB_I18n::t( 'Driver Tip' ) ); ?> (<span id="etb-pay-display-tip-pct"><?php echo esc_html( $saved_tip_percent ); ?>%</span>)</span>
                             </div>
                         </div>
                     </div>
@@ -343,7 +340,7 @@ $formatted_amount = number_format_i18n( $settled_amount, 2 ) . ' ' . $currency_s
                             <!-- VUE MULTI-TRAJETS SUR LA PAGE DE PAIEMENT                  -->
                             <!-- ══════════════════════════════════════════════════════════ -->
                             <h4 style="font-size: 15px; font-weight: 800; margin: 0 0 14px 0; color: var(--etb-accent-gold, #fbac18); text-transform: uppercase; letter-spacing: 0.05em;">
-                                🛒 Scheduled Transfers (<?php echo count( $order_trips ); ?>)
+                                🛒 <?php echo esc_html( sprintf( ETB_I18n::t( 'Scheduled Transfers (%d)' ), count( $order_trips ) ) ); ?>
                             </h4>
 
                             <div class="etb-pay-multi-trips-list" style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 18px;">
@@ -351,19 +348,19 @@ $formatted_amount = number_format_i18n( $settled_amount, 2 ) . ' ' . $currency_s
                                     $t_dt_display = '—';
                                     if ( ! empty( $t['date'] ) ) {
                                         $t_ts = strtotime( $t['date'] );
-                                        $t_dt_display = $t_ts ? date( 'd M. Y', $t_ts ) : $t['date'];
+                                        $t_dt_display = $t_ts ? ETB_I18n::date( 'd M. Y', $t_ts ) : $t['date'];
                                         if ( ! empty( $t['time'] ) ) {
-                                            $t_dt_display .= ' at ' . $t['time'];
+                                            $t_dt_display .= ETB_I18n::t( ' at ' ) . $t['time'];
                                         }
                                     }
                                     $t_price_display = ( 'Custom Quote' === $t['price'] || floatval( $t['price'] ) <= 0 ) 
-                                        ? 'Custom Quote' 
+                                        ? ETB_I18n::t( 'Custom Quote' ) 
                                         : ( number_format_i18n( floatval( $t['price'] ), 2 ) . ' ' . $currency_symbol );
                                 ?>
                                     <div style="background: rgba(255, 255, 255, 0.03); border: 1px solid var(--etb-border-light, rgba(255, 255, 255, 0.08)); border-radius: 10px; padding: 12px 14px;">
                                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
                                             <div style="display: flex; align-items: center; gap: 8px;">
-                                                <span style="background: #fbac18; color: #0f172a; font-size: 11px; font-weight: 800; padding: 2px 7px; border-radius: 4px;">#<?php echo esc_html( $idx + 1 ); ?></span>
+                                                <span style="background: var(--etb-brand); color: var(--etb-on-brand); font-size: 11px; font-weight: 800; padding: 2px 7px; border-radius: 4px;">#<?php echo esc_html( $idx + 1 ); ?></span>
                                                 <strong style="color: var(--etb-text-primary, #ffffff); font-size: 13.5px;"><?php echo esc_html( $t['vehicle_name'] ); ?></strong>
                                             </div>
                                             <strong style="color: var(--etb-accent-gold, #fbac18); font-size: 13.5px;"><?php echo esc_html( $t_price_display ); ?></strong>
@@ -373,7 +370,7 @@ $formatted_amount = number_format_i18n( $settled_amount, 2 ) . ' ' . $currency_s
                                         </div>
                                         <div style="font-size: 12px; color: var(--etb-text-primary, #cbd5e1); line-height: 1.45;">
                                             <?php if ( 'hourly' === $t['mode'] ) : ?>
-                                                ⏱️ By the hour (<?php echo esc_html( $t['duration'] ); ?>h) — <?php echo esc_html( $t['pickup'] ); ?>
+                                                ⏱️ <?php echo esc_html( sprintf( ETB_I18n::t( 'By the hour (%sh)' ), $t['duration'] ) ); ?> — <?php echo esc_html( $t['pickup'] ); ?>
                                             <?php else : ?>
                                                 📍 <?php echo esc_html( $t['pickup'] ); ?><br>➔ 🏁 <?php echo esc_html( $t['dropoff'] ); ?>
                                             <?php endif; ?>
@@ -395,7 +392,7 @@ $formatted_amount = number_format_i18n( $settled_amount, 2 ) . ' ' . $currency_s
                             <div class="etb-chk-summary-timeline" style="margin-bottom: 18px;">
                                 <div class="etb-chk-timeline-item">
                                     <span class="etb-chk-calendar-icon">
-                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fbac18" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" style="color: var(--etb-accent-gold);" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                             <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
                                             <line x1="16" y1="2" x2="16" y2="6"></line>
                                             <line x1="8" y1="2" x2="8" y2="6"></line>
@@ -403,7 +400,7 @@ $formatted_amount = number_format_i18n( $settled_amount, 2 ) . ' ' . $currency_s
                                         </svg>
                                     </span>
                                     <div class="etb-chk-timeline-text">
-                                        <small>DATE & TIME</small>
+                                        <small><?php echo esc_html( ETB_I18n::t( 'DATE & TIME' ) ); ?></small>
                                         <strong><?php echo esc_html( $formatted_pay_datetime ); ?></strong>
                                     </div>
                                 </div>
@@ -411,7 +408,7 @@ $formatted_amount = number_format_i18n( $settled_amount, 2 ) . ' ' . $currency_s
                                 <div class="etb-chk-timeline-item">
                                     <span class="etb-chk-bullet etb-bullet-pickup"></span>
                                     <div class="etb-chk-timeline-text">
-                                        <small>PICKUP</small>
+                                        <small><?php echo esc_html( ETB_I18n::t( 'PICKUP' ) ); ?></small>
                                         <strong><?php echo esc_html( $pickup_address ); ?></strong>
                                     </div>
                                 </div>
@@ -419,16 +416,16 @@ $formatted_amount = number_format_i18n( $settled_amount, 2 ) . ' ' . $currency_s
                                 <div class="etb-chk-timeline-item">
                                     <span class="etb-chk-bullet etb-bullet-dropoff"></span>
                                     <div class="etb-chk-timeline-text">
-                                        <small>DROP-OFF / SERVICE</small>
+                                        <small><?php echo esc_html( ETB_I18n::t( 'DROP-OFF / SERVICE' ) ); ?></small>
                                         <strong><?php echo esc_html( $dropoff_info ); ?></strong>
                                     </div>
                                 </div>
 
                                 <?php if ( ! empty( $flight_number ) ) : ?>
                                     <div class="etb-chk-timeline-item">
-                                        <span class="dashicons dashicons-airplane" style="color: #fbac18; font-size: 15px; margin-left: 2px;"></span>
+                                        <span class="dashicons dashicons-airplane" style="color: var(--etb-accent-gold); font-size: 15px; margin-left: 2px;"></span>
                                         <div class="etb-chk-timeline-text">
-                                            <small>FLIGHT</small>
+                                            <small><?php echo esc_html( ETB_I18n::t( 'FLIGHT' ) ); ?></small>
                                             <strong><?php echo esc_html( $flight_number ); ?></strong>
                                         </div>
                                     </div>
@@ -438,7 +435,7 @@ $formatted_amount = number_format_i18n( $settled_amount, 2 ) . ' ' . $currency_s
                                     <div class="etb-chk-timeline-item">
                                         <span style="font-size: 13px; line-height: 1; margin-left: 2px;">🪧</span>
                                         <div class="etb-chk-timeline-text">
-                                            <small>GREETING SIGN</small>
+                                            <small><?php echo esc_html( ETB_I18n::t( 'GREETING SIGN' ) ); ?></small>
                                             <strong><?php echo esc_html( $waiting_sign ); ?></strong>
                                         </div>
                                     </div>
@@ -449,7 +446,7 @@ $formatted_amount = number_format_i18n( $settled_amount, 2 ) . ' ' . $currency_s
                         <!-- 3. PASSAGER & CAPACITÉS (PAX, CHECKED, CABIN, SIÈGES BÉBÉ) -->
                         <div style="border-top: 1px dashed var(--etb-border-light, rgba(255,255,255,0.08)); padding-top: 16px;">
                             <p style="font-size: 13px; color: var(--etb-text-secondary, #94a3b8); margin: 0 0 10px 0;">
-                                Passenger: <strong style="color: var(--etb-text-primary, #ffffff);"><?php echo esc_html( $customer_name ); ?></strong>
+                                <?php echo esc_html( ETB_I18n::t( 'Passenger:' ) ); ?> <strong style="color: var(--etb-text-primary, #ffffff);"><?php echo esc_html( $customer_name ); ?></strong>
                             </p>
 
                             <!-- Spécifications Passagers & Bagages : Pax, Checked, Cabin -->
@@ -461,14 +458,14 @@ $formatted_amount = number_format_i18n( $settled_amount, 2 ) . ' ' . $currency_s
                                         <path d="m54.445 25.965c0 10.77-8.7305 19.504-19.5 19.504-10.77 0-19.504-8.7344-19.504-19.504 0-10.77 8.7344-19.5 19.504-19.5 10.77-0.003906 19.5 8.7305 19.5 19.5z"/>
                                         <path d="m99.328 66.391c-4.2578-8.8516-14.051-16.625-25.383-16.695-5.1719 0.03125-10.023 1.6719-14.176 4.2812 6.0273 4.4648 11.02 10.426 14.141 16.91 1.5391 3.1641 1.8438 6.8906 0.93359 10.605 5.7734-0.0625 11.539-0.73047 17.258-2.0078 5.707-1.4414 9.5078-8.4141 7.2266-13.094z"/>
                                     </svg>
-                                    <strong style="color: var(--etb-text-primary, #ffffff);"><?php echo esc_html( $pax_count ); ?></strong> Passengers
+                                    <strong style="color: var(--etb-text-primary, #ffffff);"><?php echo esc_html( $pax_count ); ?></strong> <?php echo esc_html( ETB_I18n::t( 'Passengers' ) ); ?>
                                 </span>
                                 <span>•</span>
                                 <span style="display: inline-flex; align-items: center; gap: 5px;">
                                     <svg viewBox="20 8 60 88" width="14" height="14" fill=" var(--etb-accent-gold, #fbac18)">
                                         <path d="M70.75,26.75H60.028l1.056,5.476c2.108-0.315,4.109,1.073,4.517,3.185l0.868,4.5c0.418,2.169-1.001,4.267-3.171,4.685 l-1.227,0.237c-2.169,0.418-4.268-1.001-4.686-3.17l-0.867-4.5c-0.408-2.113,0.936-4.146,3.01-4.637l-1.113-5.775H54.75v-14 c0-0.019-0.01-0.034-0.011-0.052c0.002-0.032,0.01-0.062,0.01-0.095c0-0.773-0.626-1.397-1.397-1.397h-6.705 c-0.771,0-1.397,0.624-1.397,1.397c0,0.034,0.008,0.065,0.01,0.098c0,0.017-0.01,0.031-0.01,0.049v14h-16c-2.209,0-4,1.791-4,4v59 c0,2.209,1.791,4,4,4h6V94c0,0.69,0.559,1.25,1.25,1.25c0.689,0,1.25-0.56,1.25-1.25v-0.25h24.5V94c0,0.69,0.559,1.25,1.25,1.25 c0.689,0,1.25-0.56,1.25-1.25v-0.25h6c2.209,0,4-1.791,4-4v-59C74.75,28.541,72.959,26.75,70.75,26.75z M47.75,14h4.5v12.75h-4.5V14 z M63.39,84.078h-26.78c-1.027,0-1.86-0.834-1.86-1.859c0-1.028,0.833-1.859,1.86-1.859h26.78c1.026,0,1.859,0.831,1.859,1.859 C65.249,83.244,64.416,84.078,63.39,84.078z"/>
                                     </svg>
-                                    <strong style="color: var(--etb-text-primary, #ffffff);"><?php echo esc_html( $checked_luggage ); ?></strong> Checked
+                                    <strong style="color: var(--etb-text-primary, #ffffff);"><?php echo esc_html( $checked_luggage ); ?></strong> <?php echo esc_html( ETB_I18n::t( 'Checked' ) ); ?>
                                 </span>
                                 <span>•</span>
                                 <span style="display: inline-flex; align-items: center; gap: 5px;">
@@ -477,18 +474,18 @@ $formatted_amount = number_format_i18n( $settled_amount, 2 ) . ' ' . $currency_s
                                         <path d="M0,129v191.25c0,21.123,17.126,38.25,38.25,38.25h28.688V90.75H38.25C17.126,90.75,0,107.876,0,129z"/>
                                         <path d="M363.188,90.75H334.5V358.5h28.688c21.125,0,38.25-17.127,38.25-38.25V129C401.438,107.876,384.311,90.75,363.188,90.75z"/>
                                     </svg>
-                                    <strong style="color: var(--etb-text-primary, #ffffff);"><?php echo esc_html( $cabin_bags ); ?></strong> Cabin
+                                    <strong style="color: var(--etb-text-primary, #ffffff);"><?php echo esc_html( $cabin_bags ); ?></strong> <?php echo esc_html( ETB_I18n::t( 'Cabin' ) ); ?>
                                 </span>
                             </div>
 
                             <!-- Sièges enfants si présents -->
                             <?php if ( $baby_seats > 0 || $booster_seats > 0 ) : ?>
                                 <div class="baby-seat-list">
-                                    👶 Child Seats: 
+                                    👶 <?php echo esc_html( ETB_I18n::t( 'Child Seats:' ) ); ?> 
                                     <?php 
                                     $seats_recap = array();
-                                    if ( $baby_seats > 0 ) $seats_recap[] = $baby_seats . ' Baby Seat (0-2y)';
-                                    if ( $booster_seats > 0 ) $seats_recap[] = $booster_seats . ' Booster (2-10y)';
+                                    if ( $baby_seats > 0 ) $seats_recap[] = sprintf( ETB_I18n::t( '%d Baby Seat (0-2y)' ), $baby_seats );
+                                    if ( $booster_seats > 0 ) $seats_recap[] = sprintf( ETB_I18n::t( '%d Booster (2-10y)' ), $booster_seats );
                                     echo esc_html( implode( ' + ', $seats_recap ) );
                                     ?>
                                 </div>
@@ -503,14 +500,14 @@ $formatted_amount = number_format_i18n( $settled_amount, 2 ) . ' ' . $currency_s
                     $clean_display_ref = ltrim( $raw_ref, '#' );
                     ?>
                     <div style="font-size: 12px; color: var(--etb-text-secondary, #94a3b8); border-top: 1px dashed var(--etb-border-light, rgba(255,255,255,0.08)); padding-top: 12px;">
-                        <span>Booking Reference: <strong style="color: var(--etb-text-primary, #ffffff); font-size: 13.5px; letter-spacing: 0.02em;">#<?php echo esc_html( $clean_display_ref ); ?></strong></span>
+                        <span><?php echo esc_html( ETB_I18n::t( 'Booking Reference:' ) ); ?> <strong style="color: var(--etb-text-primary, #ffffff); font-size: 13.5px; letter-spacing: 0.02em;">#<?php echo esc_html( $clean_display_ref ); ?></strong></span>
                     </div>
 
                     <!-- Note informative : Paiements futurs (Point 1) -->
                     <div style="margin-top: 20px; padding: 14px 16px; background: var(--etb-bg-input, rgba(255,255,255,0.03)); border: 1px solid var(--etb-border-light, rgba(255,255,255,0.08)); border-radius: 10px;">
-                        <strong style="display: block; font-size: 13px; color: var(--etb-text-primary, #0f172a); margin-bottom: 4px;">Setup payments for future usage</strong>
+                        <strong style="display: block; font-size: 13px; color: var(--etb-text-primary, #0f172a); margin-bottom: 4px;"><?php echo esc_html( ETB_I18n::t( 'Setup payments for future usage' ) ); ?></strong>
                         <p style="font-size: 11.5px; color: var(--etb-text-secondary, #64748b); line-height: 1.5; margin: 0;">
-                            Allows <?php echo esc_html( $legal_name ); ?> to collect payments without your presence. Useful if you're a regular customer.
+                            <?php echo esc_html( ETB_I18n::t( 'Allows' ) ); ?> <?php echo esc_html( $legal_name ); ?> <?php echo esc_html( ETB_I18n::t( 'to collect payments without your presence. Useful if you\'re a regular customer.' ) ); ?>
                         </p>
                     </div>
 
@@ -523,7 +520,7 @@ $formatted_amount = number_format_i18n( $settled_amount, 2 ) . ' ' . $currency_s
             <div class="etb-checkout-right-col" style="position: static !important; width: 100% !important;">
                 <div class="etb-checkout-card">
                     
-                    <h3 class="etb-payment-section-title" style="margin-bottom: 20px;">Payment Details</h3>
+                    <h3 class="etb-payment-section-title" style="margin-bottom: 20px;"><?php echo esc_html( ETB_I18n::t( 'Payment Details' ) ); ?></h3>
 
                     <form id="etb-standalone-payment-form" onsubmit="return false;">
                         <input type="hidden" name="booking_id" id="etb-pay-booking-id" value="<?php echo esc_attr( $booking_id ); ?>">
@@ -540,20 +537,20 @@ $formatted_amount = number_format_i18n( $settled_amount, 2 ) . ' ' . $currency_s
                         <!-- 1. SÉLECTEUR D'ONGLETS : 3 MODES TOUJOURS VISIBLES -->
                         <div class="etb-pay-tabs-nav" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 22px;">
                             <!-- Onglet Carte -->
-                            <button type="button" class="etb-pay-tab-btn active" data-tab="card" style="display: flex; align-items: center; justify-content: center; gap: 7px; padding: 12px 8px; border-radius: 8px; border: 1.5px solid var(--etb-accent-gold, #fbac18); background: rgba(251, 172, 24, 0.1); color: var(--etb-text-secondary, #ffffff); font-size: 18px; font-weight: 600; cursor: pointer; transition: all 0.2s ease;">
+                            <button type="button" class="etb-pay-tab-btn active" data-tab="card">
                                 <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect><line x1="1" y1="10" x2="23" y2="10"></line></svg>
-                                <span>Card</span>
+                                <span><?php echo esc_html( ETB_I18n::t( 'Card' ) ); ?></span>
                             </button>
 
                             <!-- Onglet Apple Pay officiel -->
-                            <button type="button" class="etb-pay-tab-btn" data-tab="apple-pay" style="display: flex; align-items: center; justify-content: center; padding: 12px 8px; border-radius: 8px; border: 1px solid var(--etb-border-light, rgba(255,255,255,0.12)); background: rgba(255,255,255,0.03); color: var(--etb-text-secondary, #94a3b8); cursor: pointer; transition: all 0.2s ease;">
+                            <button type="button" class="etb-pay-tab-btn" data-tab="apple-pay">
                                 <svg viewBox="0 0 512 215" style="height: 20px; width: auto; max-width: 58px; display: block;" fill="currentColor">
                                     <path d="M93.5520633,27.1031049 C87.5513758,34.2039183 77.9502759,39.8045599 68.349176,39.0044683 C67.1490386,29.4033684 71.849577,19.2021998 77.3502072,12.901478 C83.3508946,5.6006416 93.8520976,0.400045829 102.353071,0 C103.353186,10.0011457 99.4527392,19.8022685 93.5520633,27.1031049 Z M102.25306,40.904686 C88.3514675,40.1045943 76.4501041,48.8055911 69.8493479,48.8055911 C63.1485803,48.8055911 53.0474231,41.3047318 42.0461628,41.5047547 C27.7445244,41.7047776 14.4430006,49.8057057 7.14216427,62.7071836 C-7.8595543,88.5101396 3.24171744,126.714516 17.7433787,147.716922 C24.8441922,158.118114 33.345166,169.51942 44.5464492,169.119374 C55.1476637,168.719328 59.3481449,162.218584 72.1496114,162.218584 C85.0510894,162.218584 88.7515133,169.119374 99.9527965,168.919351 C111.554126,168.719328 118.854962,158.51816 125.955775,148.116968 C134.056703,136.315616 137.357081,124.814299 137.557104,124.21423 C137.357081,124.014207 115.154538,115.513233 114.954515,89.9103 C114.754492,68.5078482 132.45652,58.3066795 133.256612,57.7066108 C123.255466,42.9049151 107.653679,41.3047318 102.25306,40.904686 Z M182.56226,11.9013634 L182.56226,167.819225 L206.765033,167.819225 L206.765033,114.513118 L240.268871,114.513118 C270.872377,114.513118 292.37484,93.5107124 292.37484,63.1072295 C292.37484,32.7037465 271.272423,11.9013634 241.068963,11.9013634 L182.56226,11.9013634 Z M206.765033,32.3037007 L234.668229,32.3037007 C255.670635,32.3037007 267.67201,43.5049839 267.67201,63.2072409 C267.67201,82.909498 255.670635,94.2107926 234.568218,94.2107926 L206.765033,94.2107926 L206.765033,32.3037007 Z M336.579904,169.019363 C351.781646,169.019363 365.883261,161.31848 372.283994,149.117083 L372.784052,149.117083 L372.784052,167.819225 L395.186618,167.819225 L395.186618,90.2103344 C395.186618,67.7077565 377.184556,53.2060952 349.481382,53.2060952 C323.778438,53.2060952 304.776261,67.9077794 304.076181,88.1100938 L325.878678,88.1100938 C327.678884,78.5089939 336.579904,72.2082721 348.781302,72.2082721 C363.582998,72.2082721 371.883949,79.1090626 371.883949,91.8105177 L371.883949,100.411503 L341.680488,102.211709 C313.577269,103.911904 298.375528,115.413222 298.375528,135.415513 C298.375528,155.617827 314.077326,169.019363 336.579904,169.019363 Z M343.080649,150.517243 C330.179171,150.517243 321.978231,144.316533 321.978231,134.815444 C321.978231,125.014321 329.879137,119.313668 344.980867,118.413565 L371.883949,116.713371 L371.883949,125.514379 C371.883949,140.116051 359.482528,150.517243 343.080649,150.517243 Z M425.090044,210.224083 C448.692748,210.224083 459.794019,201.223052 469.495131,173.919924 L512,54.7062671 L487.397182,54.7062671 L458.893916,146.816819 L458.393859,146.816819 L429.890594,54.7062671 L404.587695,54.7062671 L445.592392,168.219271 L443.39214,175.120061 C439.691716,186.821402 433.691029,191.321918 422.989803,191.321918 C421.089585,191.321918 417.389162,191.121895 415.88899,190.921872 L415.88899,209.624014 C417.28915,210.02406 423.289838,210.224083 425.090044,210.224083 Z"/>
                                 </svg>
                             </button>
 
                             <!-- Onglet Google Pay officiel -->
-                            <button type="button" class="etb-pay-tab-btn" data-tab="google-pay" style="display: flex; align-items: center; justify-content: center; padding: 12px 8px; border-radius: 8px; border: 1px solid var(--etb-border-light, rgba(255,255,255,0.12)); background: rgba(255,255,255,0.03); color: var(--etb-text-secondary, #94a3b8); cursor: pointer; transition: all 0.2s ease;">
+                            <button type="button" class="etb-pay-tab-btn" data-tab="google-pay">
                                 <svg viewBox="0 0 2387.3 948" style="height: 20px; width: auto; max-width: 58px; display: block;">
                                     <path fill="currentColor" d="M1129.1,463.2V741h-88.2V54.8h233.8c56.4-1.2,110.9,20.2,151.4,59.4c41,36.9,64.1,89.7,63.2,144.8 c1.2,55.5-21.9,108.7-63.2,145.7c-40.9,39-91.4,58.5-151.4,58.4L1129.1,463.2L1129.1,463.2z M1129.1,139.3v239.6h147.8 c32.8,1,64.4-11.9,87.2-35.5c46.3-45,47.4-119.1,2.3-165.4c-0.8-0.8-1.5-1.6-2.3-2.3c-22.5-24.1-54.3-37.3-87.2-36.4L1129.1,139.3 L1129.1,139.3z M1692.5,256.2c65.2,0,116.6,17.4,154.3,52.2c37.7,34.8,56.5,82.6,56.5,143.2V741H1819v-65.2h-3.8 c-36.5,53.7-85.1,80.5-145.7,80.5c-51.7,0-95-15.3-129.8-46c-33.8-28.5-53-70.7-52.2-115c0-48.6,18.4-87.2,55.1-115.9 c36.7-28.7,85.7-43.1,147.1-43.1c52.3,0,95.5,9.6,129.3,28.7v-20.2c0.2-30.2-13.2-58.8-36.4-78c-23.3-21-53.7-32.5-85.1-32.1 c-49.2,0-88.2,20.8-116.9,62.3l-77.6-48.9C1545.6,286.8,1608.8,256.2,1692.5,256.2L1692.5,256.2z M1578.4,597.3 c-0.1,22.8,10.8,44.2,29.2,57.5c19.5,15.3,43.7,23.5,68.5,23c37.2-0.1,72.9-14.9,99.2-41.2c29.2-27.5,43.8-59.7,43.8-96.8 c-27.5-21.9-65.8-32.9-115-32.9c-35.8,0-65.7,8.6-89.6,25.9C1590.4,550.4,1578.4,571.7,1578.4,597.3L1578.4,597.3z M2387.3,271.5 L2093,948h-91l109.2-236.7l-193.6-439.8h95.8l139.9,337.3h1.9l136.1-337.3L2387.3,271.5z"/>
                                     <path fill="#4285F4" d="M772.8,403.2c0-26.9-2.2-53.7-6.8-80.2H394.2v151.8h212.9c-8.8,49-37.2,92.3-78.7,119.8v98.6h127.1 C729.9,624.7,772.8,523.2,772.8,403.2L772.8,403.2z"/>
@@ -569,11 +566,11 @@ $formatted_amount = number_format_i18n( $settled_amount, 2 ) . ' ' . $currency_s
                             <!-- Bloc actif Apple Pay avec pourboire (affiché UNIQUEMENT si Apple Pay est supporté) -->
                             <div id="etb-apple-pay-active-wrap" style="display: none;">
                                 <div class="etb-chk-tip-section" style="margin-bottom: 12px;">
-                                    <label class="etb-chk-tip-title" style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: #94a3b8; letter-spacing: 0.05em; margin-bottom: 8px; display: block;">Driver Tip (Optional)</label>
+                                    <label class="etb-chk-tip-title" style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--etb-text-secondary); letter-spacing: 0.05em; margin-bottom: 8px; display: block;"><?php echo esc_html( ETB_I18n::t( 'Driver Tip (Optional)' ) ); ?></label>
                                     <div class="etb-chk-tip-pills">
                                         <label class="etb-tip-pill <?php echo ( 0 === $saved_tip_percent ) ? 'active' : ''; ?>" data-tip="0">
                                             <input type="radio" name="etb_apple_tip" value="0" <?php checked( $saved_tip_percent, 0 ); ?>>
-                                            <span>None</span>
+                                            <span><?php echo esc_html( ETB_I18n::t( 'None' ) ); ?></span>
                                         </label>
                                         <label class="etb-tip-pill <?php echo ( 10 === $saved_tip_percent ) ? 'active' : ''; ?>" data-tip="10">
                                             <input type="radio" name="etb_apple_tip" value="10" <?php checked( $saved_tip_percent, 10 ); ?>>
@@ -590,7 +587,7 @@ $formatted_amount = number_format_i18n( $settled_amount, 2 ) . ' ' . $currency_s
                                     </div>
 
                                     <!-- Émoji persistant Apple Pay (s'anime puis se fige, réactif au survol) -->
-                                    <div class="etb-tip-persistent-badge" style="display: <?php echo ( $saved_tip_percent > 0 && $initial_code ) ? 'flex' : 'none'; ?>; cursor: pointer;" title="Hover to animate">
+                                    <div class="etb-tip-persistent-badge" style="display: <?php echo ( $saved_tip_percent > 0 && $initial_code ) ? 'flex' : 'none'; ?>; cursor: pointer;" title="<?php echo esc_attr( ETB_I18n::t( 'Hover to animate' ) ); ?>">
                                         <img class="etb-tip-badge-img" src="<?php echo $initial_code ? esc_url( 'https://fonts.gstatic.com/s/e/notoemoji/latest/' . $initial_code . '/512.webp' ) : ''; ?>" alt="tip-emoji">
                                     </div>
 
@@ -599,11 +596,11 @@ $formatted_amount = number_format_i18n( $settled_amount, 2 ) . ' ' . $currency_s
                                 <!-- Micro-récapitulatif dynamique sous les pourboires -->
                                 <div class="etb-wallet-live-total" style="margin-bottom: 14px; padding: 10px 14px; background: rgba(255,255,255,0.02); border: 1px solid var(--etb-border-light, rgba(255,255,255,0.08)); border-radius: 8px;">
                                     <div style="display: flex; justify-content: space-between; align-items: baseline;">
-                                        <span style="font-size: 11.5px; color: var(--etb-text-secondary, #94a3b8); text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600;">Total to authorize</span>
+                                        <span style="font-size: 11.5px; color: var(--etb-text-secondary, #94a3b8); text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600;"><?php echo esc_html( ETB_I18n::t( 'Total to authorize' ) ); ?></span>
                                         <strong class="etb-wallet-display-amount" style="font-size: 18px; font-weight: 800; color: var(--etb-accent-gold, #fbac18);"><?php echo esc_html( $formatted_amount ); ?></strong>
                                     </div>
-                                    <div class="etb-wallet-tip-detail" style="display: <?php echo ( $saved_tip_amount > 0 ) ? 'block' : 'none'; ?>; font-size: 11.5px; color: #4ade80; margin-top: 3px;">
-                                        • Includes <span class="etb-wallet-tip-text">+<?php echo number_format_i18n( $saved_tip_amount, 2 ); ?> <?php echo esc_html( $currency_symbol ); ?></span> driver tip (<span class="etb-wallet-tip-pct"><?php echo esc_html( $saved_tip_percent ); ?>%</span>)
+                                    <div class="etb-wallet-tip-detail" style="display: <?php echo ( $saved_tip_amount > 0 ) ? 'block' : 'none'; ?>; font-size: 11.5px; color: var(--etb-success); margin-top: 3px;">
+                                        • <?php echo esc_html( ETB_I18n::t( 'Includes' ) ); ?> <span class="etb-wallet-tip-text">+<?php echo number_format_i18n( $saved_tip_amount, 2 ); ?> <?php echo esc_html( $currency_symbol ); ?></span> <?php echo esc_html( ETB_I18n::t( 'driver tip' ) ); ?> (<span class="etb-wallet-tip-pct"><?php echo esc_html( $saved_tip_percent ); ?>%</span>)
                                     </div>
                                 </div>
 
@@ -612,7 +609,7 @@ $formatted_amount = number_format_i18n( $settled_amount, 2 ) . ' ' . $currency_s
                                 <!-- Mention légale & sécurité discrète -->
                                 <p class="etb-wallet-legal-notice" style="margin: 12px 0 0 0; text-align: center; font-size: 11px; color: var(--etb-text-secondary, #94a3b8); line-height: 1.4;">
                                     <span class="dashicons dashicons-shield" style="font-size: 13px; width: 13px; height: 13px; vertical-align: middle;"></span>
-                                    256-Bit SSL Encrypted · By paying, you agree to <?php echo esc_html( $legal_name ); ?>'s Terms & Conditions.
+                                    <?php echo esc_html( ETB_I18n::t( '256-Bit SSL Encrypted · By paying, you agree to' ) ); ?> <?php echo esc_html( $legal_name ); ?><?php echo esc_html( ETB_I18n::t( '\'s Terms & Conditions.' ) ); ?>
                                 </p>
                             </div>
 
@@ -623,12 +620,12 @@ $formatted_amount = number_format_i18n( $settled_amount, 2 ) . ' ' . $currency_s
                                         <path d="m33.6 24h-31.2c-1.325 0-2.4-1.075-2.4-2.4v-19.2c0-1.325 1.075-2.4 2.4-2.4h31.2c1.325 0 2.4 1.075 2.4 2.4v19.2c0 1.325-1.075 2.4-2.4 2.4zm-5.807-7.11v1.11c.159.022.342.035.528.035h.016-.001c1.394 0 2.056-.542 2.626-2.147l2.514-7.05h-1.454l-1.686 5.446h-.03l-1.686-5.446h-1.496l2.425 6.713-.13.408c-.088.549-.559.963-1.125.963-.028 0-.056-.001-.084-.003h.004c-.112-.005-.332-.018-.42-.029zm-22.08-8.836h-.026c-.886.025-1.651.519-2.058 1.241l-.006.012c-.844 1.452-.307 3.674.627 5.027.438.64.918 1.266 1.551 1.266h.034c.265-.017.51-.086.731-.197l-.011.005c.267-.134.581-.213.913-.216h.001c.321.002.624.08.891.216l-.011-.005c.215.112.468.18.737.186h.002.027c.705-.013 1.147-.66 1.538-1.23.279-.404.51-.869.672-1.366l.011-.038v-.01l-.018-.008c-.78-.355-1.313-1.125-1.318-2.021v-.001c.008-.796.427-1.492 1.055-1.887l.009-.005.018-.012c-.409-.588-1.074-.974-1.83-.994h-.003c-.035 0-.071 0-.106 0-.446.024-.862.131-1.239.307l.021-.009c-.172.084-.372.145-.583.171l-.009.001c-.228-.025-.436-.087-.626-.181l.011.005c-.293-.142-.636-.235-.997-.259h-.008zm18.113 1.816c.88 0 1.366.412 1.366 1.159v.509l-1.786.106c-1.675.101-2.56.78-2.56 1.963.012 1.108.912 2.001 2.022 2.001.084 0 .166-.005.247-.015l-.01.001c.019.001.042.001.065.001.869 0 1.629-.468 2.041-1.167l.006-.011h.03v1.102h1.325v-4.586c0-1.33-1.061-2.188-2.703-2.188-1.514 0-2.64.868-2.685 2.063h1.29c.144-.549.635-.947 1.219-.947.047 0 .094.003.14.008l-.006-.001zm-9.826-3.566v9.216h1.431v-3.152h1.977c.046.003.101.004.155.004 1.618 0 2.929-1.311 2.929-2.929 0-.041-.001-.081-.002-.121v.006c.002-.038.003-.082.003-.127 0-1.602-1.298-2.9-2.9-2.9-.048 0-.096.001-.143.003h.007zm-4.747-.704c-.594.058-1.112.34-1.477.76l-.002.003c-.333.373-.536.868-.536 1.41 0 .047.002.094.005.14v-.006c.034 0 .07.004.11.004.56-.032 1.051-.3 1.378-.707l.003-.004c.327-.387.526-.891.526-1.443 0-.055-.002-.11-.006-.165v.007zm14.236 8.901c-.758 0-1.249-.365-1.249-.929 0-.582.47-.917 1.36-.97l1.59-.1v.521c-.035.828-.715 1.485-1.548 1.485-.054 0-.107-.003-.16-.008zm-6.418-3.33h-1.644v-3.661h1.65c.07-.01.151-.016.234-.016.951 0 1.722.771 1.722 1.722 0 .042-.002.085-.005.126v-.006c.003.036.004.079.004.122 0 .954-.774 1.728-1.728 1.728-.082 0-.164-.006-.243-.017l.009.001z"/>
                                     </svg>
                                 </div>
-                                <strong style="display: block; font-size: 14.5px; margin-bottom: 6px; color: var(--etb-text-primary, #ffffff);">Apple Pay is not available on this device</strong>
+                                <strong style="display: block; font-size: 14.5px; margin-bottom: 6px; color: var(--etb-text-primary, #ffffff);"><?php echo esc_html( ETB_I18n::t( 'Apple Pay is not available on this device' ) ); ?></strong>
                                 <p style="font-size: 12px; color: var(--etb-text-secondary, #94a3b8); margin: 0 0 18px 0; line-height: 1.55; max-width: 440px; margin-left: auto; margin-right: auto;">
-                                    Apple Pay requires the Safari browser on an iPhone, iPad, or Mac with an active Wallet card.
+                                    <?php echo esc_html( ETB_I18n::t( 'Apple Pay requires the Safari browser on an iPhone, iPad, or Mac with an active Wallet card.' ) ); ?>
                                 </p>
-                                <button type="button" class="etb-switch-to-card-btn" style="background: var(--etb-accent-gold, #fbac18); color: #000; border: none; padding: 10px 22px; border-radius: 6px; font-weight: 700; font-size: 12.5px; cursor: pointer; transition: transform 0.15s ease;">
-                                    Pay with Credit Card instead ➔
+                                <button type="button" class="etb-switch-to-card-btn" style="background: var(--etb-brand); color: var(--etb-on-brand); border: none; padding: 10px 22px; border-radius: 6px; font-weight: 700; font-size: 12.5px; cursor: pointer; transition: transform 0.15s ease;">
+                                    <?php echo esc_html( ETB_I18n::t( 'Pay with Credit Card instead ➔' ) ); ?>
                                 </button>
                             </div>
                         </div>
@@ -638,11 +635,11 @@ $formatted_amount = number_format_i18n( $settled_amount, 2 ) . ' ' . $currency_s
                             <!-- Bloc actif Google Pay avec pourboire (affiché UNIQUEMENT si Google Pay est supporté) -->
                             <div id="etb-google-pay-active-wrap" style="display: none;">
                                 <div class="etb-chk-tip-section" style="margin-bottom: 12px;">
-                                    <label class="etb-chk-tip-title" style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: #94a3b8; letter-spacing: 0.05em; margin-bottom: 8px; display: block;">Driver Tip (Optional)</label>
+                                    <label class="etb-chk-tip-title" style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--etb-text-secondary); letter-spacing: 0.05em; margin-bottom: 8px; display: block;"><?php echo esc_html( ETB_I18n::t( 'Driver Tip (Optional)' ) ); ?></label>
                                     <div class="etb-chk-tip-pills">
                                         <label class="etb-tip-pill <?php echo ( 0 === $saved_tip_percent ) ? 'active' : ''; ?>" data-tip="0">
                                             <input type="radio" name="etb_google_tip" value="0" <?php checked( $saved_tip_percent, 0 ); ?>>
-                                            <span>None</span>
+                                            <span><?php echo esc_html( ETB_I18n::t( 'None' ) ); ?></span>
                                         </label>
                                         <label class="etb-tip-pill <?php echo ( 10 === $saved_tip_percent ) ? 'active' : ''; ?>" data-tip="10">
                                             <input type="radio" name="etb_google_tip" value="10" <?php checked( $saved_tip_percent, 10 ); ?>>
@@ -659,7 +656,7 @@ $formatted_amount = number_format_i18n( $settled_amount, 2 ) . ' ' . $currency_s
                                     </div>
 
                                     <!-- Émoji persistant Google Pay (s'anime puis se fige, réactif au survol) -->
-                                    <div class="etb-tip-persistent-badge" style="display: <?php echo ( $saved_tip_percent > 0 && $initial_code ) ? 'flex' : 'none'; ?>; cursor: pointer;" title="Hover to animate">
+                                    <div class="etb-tip-persistent-badge" style="display: <?php echo ( $saved_tip_percent > 0 && $initial_code ) ? 'flex' : 'none'; ?>; cursor: pointer;" title="<?php echo esc_attr( ETB_I18n::t( 'Hover to animate' ) ); ?>">
                                         <img class="etb-tip-badge-img" src="<?php echo $initial_code ? esc_url( 'https://fonts.gstatic.com/s/e/notoemoji/latest/' . $initial_code . '/512.webp' ) : ''; ?>" alt="tip-emoji">
                                     </div>
                                     
@@ -668,11 +665,11 @@ $formatted_amount = number_format_i18n( $settled_amount, 2 ) . ' ' . $currency_s
                                 <!-- Micro-récapitulatif dynamique sous les pourboires -->
                                 <div class="etb-wallet-live-total" style="margin-bottom: 14px; padding: 10px 14px; background: rgba(255,255,255,0.02); border: 1px solid var(--etb-border-light, rgba(255,255,255,0.08)); border-radius: 8px;">
                                     <div style="display: flex; justify-content: space-between; align-items: baseline;">
-                                        <span style="font-size: 11.5px; color: var(--etb-text-secondary, #94a3b8); text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600;">Total to authorize</span>
+                                        <span style="font-size: 11.5px; color: var(--etb-text-secondary, #94a3b8); text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600;"><?php echo esc_html( ETB_I18n::t( 'Total to authorize' ) ); ?></span>
                                         <strong class="etb-wallet-display-amount" style="font-size: 18px; font-weight: 800; color: var(--etb-accent-gold, #fbac18);"><?php echo esc_html( $formatted_amount ); ?></strong>
                                     </div>
-                                    <div class="etb-wallet-tip-detail" style="display: <?php echo ( $saved_tip_amount > 0 ) ? 'block' : 'none'; ?>; font-size: 11.5px; color: #4ade80; margin-top: 3px;">
-                                        • Includes <span class="etb-wallet-tip-text">+<?php echo number_format_i18n( $saved_tip_amount, 2 ); ?> <?php echo esc_html( $currency_symbol ); ?></span> driver tip (<span class="etb-wallet-tip-pct"><?php echo esc_html( $saved_tip_percent ); ?>%</span>)
+                                    <div class="etb-wallet-tip-detail" style="display: <?php echo ( $saved_tip_amount > 0 ) ? 'block' : 'none'; ?>; font-size: 11.5px; color: var(--etb-success); margin-top: 3px;">
+                                        • <?php echo esc_html( ETB_I18n::t( 'Includes' ) ); ?> <span class="etb-wallet-tip-text">+<?php echo number_format_i18n( $saved_tip_amount, 2 ); ?> <?php echo esc_html( $currency_symbol ); ?></span> <?php echo esc_html( ETB_I18n::t( 'driver tip' ) ); ?> (<span class="etb-wallet-tip-pct"><?php echo esc_html( $saved_tip_percent ); ?>%</span>)
                                     </div>
                                 </div>
 
@@ -681,7 +678,7 @@ $formatted_amount = number_format_i18n( $settled_amount, 2 ) . ' ' . $currency_s
                                 <!-- Mention légale & sécurité discrète -->
                                 <p class="etb-wallet-legal-notice" style="margin: 12px 0 0 0; text-align: center; font-size: 11px; color: var(--etb-text-secondary, #94a3b8); line-height: 1.4;">
                                     <span class="dashicons dashicons-shield" style="font-size: 13px; width: 13px; height: 13px; vertical-align: middle;"></span>
-                                    256-Bit SSL Encrypted · By paying, you agree to <?php echo esc_html( $legal_name ); ?>'s Terms & Conditions.
+                                    <?php echo esc_html( ETB_I18n::t( '256-Bit SSL Encrypted · By paying, you agree to' ) ); ?> <?php echo esc_html( $legal_name ); ?><?php echo esc_html( ETB_I18n::t( '\'s Terms & Conditions.' ) ); ?>
                                 </p>
                             </div>
 
@@ -698,12 +695,12 @@ $formatted_amount = number_format_i18n( $settled_amount, 2 ) . ' ' . $currency_s
                                         <path d="M41.4394376,21.4111923 L30.4173692,15.0616312 C25.5014773,12.2325084 19.22242,13.9094929 16.3868856,18.8124925 L3.16291728,41.6633062 C-3.34667839,52.909317 0.512987482,67.2983621 11.7911321,73.7887693 L20.1825353,78.6211729 L30.3597115,84.4842648 L34.7762881,87.025353 C26.9353079,81.7768918 24.4454196,71.2603657 29.2395385,62.9777278 L32.6639421,57.0634359 L45.2030989,35.3968413 C48.0322449,30.5067801 46.3488719,24.2403152 41.4394376,21.4111923 Z" fill="#4285F4"/>
                                     </svg>
                                 </div>
-                                <strong style="display: block; font-size: 14.5px; margin-bottom: 6px; color: var(--etb-text-primary, #ffffff);">Google Pay is not available on this device</strong>
+                                <strong style="display: block; font-size: 14.5px; margin-bottom: 6px; color: var(--etb-text-primary, #ffffff);"><?php echo esc_html( ETB_I18n::t( 'Google Pay is not available on this device' ) ); ?></strong>
                                 <p style="font-size: 12px; color: var(--etb-text-secondary, #94a3b8); margin: 0 0 18px 0; line-height: 1.55; max-width: 440px; margin-left: auto; margin-right: auto;">
-                                    Google Pay requires Google Chrome or an Android device linked with an active Google Wallet card.
+                                    <?php echo esc_html( ETB_I18n::t( 'Google Pay requires Google Chrome or an Android device linked with an active Google Wallet card.' ) ); ?>
                                 </p>
-                                <button type="button" class="etb-switch-to-card-btn" style="background: var(--etb-accent-gold, #fbac18); color: #000; border: none; padding: 10px 22px; border-radius: 6px; font-weight: 700; font-size: 12.5px; cursor: pointer; transition: transform 0.15s ease;">
-                                    Pay with Credit Card instead ➔
+                                <button type="button" class="etb-switch-to-card-btn" style="background: var(--etb-brand); color: var(--etb-on-brand); border: none; padding: 10px 22px; border-radius: 6px; font-weight: 700; font-size: 12.5px; cursor: pointer; transition: transform 0.15s ease;">
+                                    <?php echo esc_html( ETB_I18n::t( 'Pay with Credit Card instead ➔' ) ); ?>
                                 </button>
                             </div>
                         </div>
@@ -713,20 +710,20 @@ $formatted_amount = number_format_i18n( $settled_amount, 2 ) . ' ' . $currency_s
                         
                         <!-- E-mail de confirmation -->
                         <div class="etb-chk-field">
-                            <label for="etb-pay-email">Email Receipt To *</label>
+                            <label for="etb-pay-email"><?php echo esc_html( ETB_I18n::t( 'Email Receipt To *' ) ); ?></label>
                             <input type="email" id="etb-pay-email" name="client_email_input" value="<?php echo esc_attr( $customer_email ); ?>" placeholder="email@domain.com" required>
                         </div>
 
                         <!-- Nom sur la carte -->
                         <div class="etb-chk-field">
-                            <label for="etb-pay-cardholder">Name on Card *</label>
-                            <input type="text" id="etb-pay-cardholder" name="cardholder_name" value="<?php echo esc_attr( $customer_name ); ?>" placeholder="Full Name" required>
+                            <label for="etb-pay-cardholder"><?php echo esc_html( ETB_I18n::t( 'Name on Card *' ) ); ?></label>
+                            <input type="text" id="etb-pay-cardholder" name="cardholder_name" value="<?php echo esc_attr( $customer_name ); ?>" placeholder="<?php echo esc_attr( ETB_I18n::t( 'Full Name' ) ); ?>" required>
                         </div>
 
                        <!-- Champ Carte Bancaire : Badges au-dessus à droite (Photo 1) & Détecteur à gauche (Photo 2) -->
                         <div class="etb-chk-field">
                             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                                <label style="font-size: 13px; font-weight: 600; margin: 0; color: var(--etb-text-primary, #0f172a);">Card Information *</label>
+                                <label style="font-size: 13px; font-weight: 600; margin: 0; color: var(--etb-text-primary, #0f172a);"><?php echo esc_html( ETB_I18n::t( 'Card Information *' ) ); ?></label>
                                 
                                 <!-- Les 3 badges colorés placés au-dessus à droite (SANS Discover) -->
                                 <div class="etb-stripe-official-badges">
@@ -839,18 +836,18 @@ $formatted_amount = number_format_i18n( $settled_amount, 2 ) . ' ' . $currency_s
                         );
                         ?>
                         <div class="etb-chk-field" style="margin-top: 16px;" hidden>
-                            <label style="font-size: 13px; font-weight: 600;">Country or Region *</label>
+                            <label style="font-size: 13px; font-weight: 600;"><?php echo esc_html( ETB_I18n::t( 'Country or Region *' ) ); ?></label>
                             <input type="hidden" name="card_country" id="etb-pay-card-country" value="FR">
                         
                             <div class="etb-custom-select" id="etb-pay-country-select">
                                 <div class="etb-custom-select-trigger" tabindex="0" role="combobox" aria-haspopup="listbox">
-                                    <span id="etb-pay-country-label">France</span>
+                                    <span id="etb-pay-country-label"><?php echo esc_html( ETB_I18n::t( 'France' ) ); ?></span>
                                     <span class="dashicons dashicons-arrow-down-alt2"></span>
                                 </div>
                                 <div class="etb-custom-select-options">
                                     <?php foreach ( $world_countries as $code => $name ) : ?>
                                         <div class="etb-custom-option <?php echo ( 'FR' === $code ) ? 'selected' : ''; ?>" data-val="<?php echo esc_attr( $code ); ?>">
-                                            <?php echo esc_html( $name ); ?>
+                                            <?php echo esc_html( ETB_I18n::t( $name ) ); ?>
                                         </div>
                                     <?php endforeach; ?>
                                 </div>
@@ -859,11 +856,11 @@ $formatted_amount = number_format_i18n( $settled_amount, 2 ) . ' ' . $currency_s
 
                         <!-- Sélecteur de Pourboire Chauffeur (Positionné au trait rouge juste au-dessus du texte légal) -->
                         <div class="etb-chk-tip-section" style="margin-top: 20px; margin-bottom: 16px;">
-                            <label class="etb-chk-tip-title" style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: #94a3b8; letter-spacing: 0.05em; margin-bottom: 8px; display: block;">Driver Tip (Optional)</label>
+                            <label class="etb-chk-tip-title" style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--etb-text-secondary); letter-spacing: 0.05em; margin-bottom: 8px; display: block;"><?php echo esc_html( ETB_I18n::t( 'Driver Tip (Optional)' ) ); ?></label>
                             <div class="etb-chk-tip-pills">
                                 <label class="etb-tip-pill <?php echo ( 0 === $saved_tip_percent ) ? 'active' : ''; ?>" data-tip="0">
                                     <input type="radio" name="etb_pay_driver_tip" value="0" <?php checked( $saved_tip_percent, 0 ); ?>>
-                                    <span>None</span>
+                                    <span><?php echo esc_html( ETB_I18n::t( 'None' ) ); ?></span>
                                 </label>
                                 <label class="etb-tip-pill <?php echo ( 10 === $saved_tip_percent ) ? 'active' : ''; ?>" data-tip="10">
                                     <input type="radio" name="etb_pay_driver_tip" value="10" <?php checked( $saved_tip_percent, 10 ); ?>>
@@ -886,7 +883,7 @@ $formatted_amount = number_format_i18n( $settled_amount, 2 ) . ' ' . $currency_s
                             // plus haut dans le template (ligne ~147). Pas de redéfinition ici.
                             ?>
                             
-                            <div class="etb-tip-persistent-badge" style="display: <?php echo ( $saved_tip_percent > 0 && $initial_code ) ? 'flex' : 'none'; ?>; cursor: pointer;" title="Hover to animate">
+                            <div class="etb-tip-persistent-badge" style="display: <?php echo ( $saved_tip_percent > 0 && $initial_code ) ? 'flex' : 'none'; ?>; cursor: pointer;" title="<?php echo esc_attr( ETB_I18n::t( 'Hover to animate' ) ); ?>">
                                 <img class="etb-tip-badge-img" src="<?php echo $initial_code ? esc_url( 'https://fonts.gstatic.com/s/e/notoemoji/latest/' . $initial_code . '/512.webp' ) : ''; ?>" alt="tip-emoji">
                             </div>
 
@@ -895,7 +892,7 @@ $formatted_amount = number_format_i18n( $settled_amount, 2 ) . ' ' . $currency_s
                         <!-- Mandat légal en anglais avec nom légal dynamique (Point 3) -->
                         <div class="etb-payment-disclaimer-text" style="margin-top: 14px; margin-bottom: 22px;">
                             <p style="font-size: 11.5px; color: var(--etb-text-secondary, #64748b); line-height: 1.5; margin: 0;">
-                                By providing your payment card information, you authorize <strong><?php echo esc_html( $legal_name ); ?></strong> to charge your card for future payments in accordance with its terms and conditions.
+                                <?php echo esc_html( ETB_I18n::t( 'By providing your payment card information, you authorize' ) ); ?> <strong><?php echo esc_html( $legal_name ); ?></strong> <?php echo esc_html( ETB_I18n::t( 'to charge your card for future payments in accordance with its' ) ); ?> <?php if ( ! empty( $terms_url ) ) : ?><a href="<?php echo esc_url( $terms_url ); ?>" target="_blank" rel="noopener noreferrer" class="etb-terms-link"><?php echo esc_html( ETB_I18n::t( 'terms and conditions' ) ); ?></a><?php else : ?><?php echo esc_html( ETB_I18n::t( 'terms and conditions' ) ); ?><?php endif; ?>.
                             </p>
                         </div>
 
@@ -906,13 +903,13 @@ $formatted_amount = number_format_i18n( $settled_amount, 2 ) . ' ' . $currency_s
 
                         <!-- Bouton Payer plein format -->
                         <button type="button" class="etb-chk-submit-btn" id="etb-standalone-pay-btn" style="margin-top: 24px; padding: 16px 20px; font-size: 16px;">
-                            <span id="etb-standalone-pay-text">Pay <?php echo esc_html( $formatted_amount ); ?></span>
+                            <span id="etb-standalone-pay-text"><?php echo esc_html( ETB_I18n::t( 'Pay' ) ); ?> <?php echo esc_html( $formatted_amount ); ?></span>
                             <span class="dashicons dashicons-lock"></span>
                         </button>
 
                         <p class="etb-chk-ssl-notice" style="margin-top: 16px;">
                             <span class="dashicons dashicons-shield"></span>
-                            Encrypted 256-Bit SSL Connection — Powered by Stripe
+                            <?php echo esc_html( ETB_I18n::t( 'Encrypted 256-Bit SSL Connection — Powered by Stripe' ) ); ?>
                         </p>
                         </div> <!-- Fin #etb-panel-card -->
                     </form>

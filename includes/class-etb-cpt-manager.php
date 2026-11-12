@@ -7,6 +7,29 @@ class ETB_CPT_Manager {
         add_filter( 'manage_tour_booking_posts_columns', array( $this, 'set_booking_columns' ) );
         add_action( 'manage_tour_booking_posts_custom_column', array( $this, 'render_booking_columns' ), 10, 2 );
         add_action( 'admin_menu', array( $this, 'cleanup_admin_submenus' ), 999 );
+        add_action( 'admin_init', array( $this, 'ensure_booking_capabilities' ) );
+    }
+
+    /**
+     * Attribue les capacités de gestion des réservations aux administrateurs.
+     * Idempotent : ne fait rien si les capacités existent déjà.
+     */
+    public function ensure_booking_capabilities() {
+        $admin = get_role( 'administrator' );
+        if ( ! $admin || $admin->has_cap( 'edit_tour_booking' ) ) {
+            return;
+        }
+
+        $caps = array(
+            'edit_tour_booking', 'read_tour_booking', 'delete_tour_booking',
+            'edit_tour_bookings', 'edit_others_tour_bookings', 'publish_tour_bookings',
+            'read_private_tour_bookings', 'delete_tour_bookings', 'delete_others_tour_bookings',
+            'delete_private_tour_bookings', 'delete_published_tour_bookings',
+            'edit_private_tour_bookings', 'edit_published_tour_bookings',
+        );
+        foreach ( $caps as $cap ) {
+            $admin->add_cap( $cap );
+        }
     }
 
     public function register_all_cpts() {
@@ -60,10 +83,13 @@ class ETB_CPT_Manager {
                 'menu_name'     => 'Tour Booking',
                 'all_items'     => 'Toutes les Réservations',
             ),
-            'public'    => false,
-            'show_ui'   => true,
-            'menu_icon' => 'dashicons-car',
-            'supports'  => array( 'title' ),
+            'public'          => false,
+            'show_ui'         => true,
+            'menu_icon'       => 'dashicons-car',
+            'supports'        => array( 'title' ),
+            'capability_type' => 'tour_booking',
+            'map_meta_cap'    => true,
+            'capabilities'    => array( 'create_posts' => 'do_not_allow' ),
         ));
     }
 

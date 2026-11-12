@@ -5,6 +5,11 @@ if ( ! defined( 'ABSPATH' ) ) exit;
 $gen_settings    = get_option( 'etb_general_settings', array() );
 $currency_symbol = ! empty( $gen_settings['currency'] ) ? sanitize_text_field( $gen_settings['currency'] ) : '€';
 
+$company_legal_name = ! empty( $gen_settings['company_legal_name'] ) ? sanitize_text_field( $gen_settings['company_legal_name'] ) : get_bloginfo( 'name' );
+$company_subtitle   = ! empty( $gen_settings['company_subtitle'] ) ? sanitize_text_field( $gen_settings['company_subtitle'] ) : '';
+$company_addr_1     = ! empty( $gen_settings['company_address_line1'] ) ? sanitize_text_field( $gen_settings['company_address_line1'] ) : '';
+$company_addr_2     = ! empty( $gen_settings['company_address_line2'] ) ? sanitize_text_field( $gen_settings['company_address_line2'] ) : '';
+
 // Jetons de sécurité anti-spam
 $sec_token = class_exists( 'ETB_Security' ) ? ETB_Security::generate_timestamp_token() : array( 'time' => time(), 'token' => '' );
 
@@ -13,6 +18,9 @@ $ref_token  = ! empty( $_GET['ref'] ) ? sanitize_key( $_GET['ref'] ) : '';
 $quote_data = ! empty( $ref_token ) ? get_transient( 'etb_quote_' . $ref_token ) : false;
 
 $has_quote = ( is_array( $quote_data ) && ! empty( $quote_data['vehicle_id'] ) );
+
+$is_upon_request = $has_quote ? ( $quote_data['is_upon_request'] ?? false ) : false;
+
 
 // Détection prioritaire du panier Multi-Trajets
 $is_multi_trip = ( $has_quote && ! empty( $quote_data['is_multi_trip'] ) && ! empty( $quote_data['trips'] ) );
@@ -33,23 +41,24 @@ $bag_count     = $has_quote ? ( $quote_data['bag'] ?? 2 ) : 2;
 $price_val     = $has_quote ? ( $quote_data['price'] ?? 0 ) : 0;
 
 $formatted_price = ( 'Custom Quote' === $price_val || floatval( $price_val ) <= 0 )
-    ? 'Custom Quote'
+    ? ETB_I18n::t( 'Custom Quote' )
     : ( number_format_i18n( floatval( $price_val ), 0 ) . ' ' . $currency_symbol );
 
 // Formatage de la date du premier trajet
 $formatted_datetime_display = '—';
 if ( ! empty( $date_val ) ) {
     $dt_timestamp = strtotime( $date_val );
-    $formatted_datetime_display = $dt_timestamp ? date( 'd M. Y', $dt_timestamp ) : $date_val;
+    $formatted_datetime_display = $dt_timestamp ? ETB_I18n::date( 'd M. Y', $dt_timestamp ) : $date_val;
     if ( ! empty( $time_val ) ) {
-        $formatted_datetime_display .= ' at ' . $time_val;
+        $formatted_datetime_display .= ETB_I18n::t( ' at ' ) . $time_val;
     }
 }
 
 // 3. DÉTECTION D'URGENCE INFLEXIBLE (< 24H) SUR TOUT LE PANIER
 $min_delay_hours   = ! empty( $gen_settings['min_delay'] ) ? absint( $gen_settings['min_delay'] ) : 24;
 $is_urgent_booking = false;
-$now_timestamp     = current_time( 'timestamp' ); // Heure locale exacte de WordPress
+$is_upon_request = $has_quote ? ( $quote_data['is_upon_request'] ?? false ) : false;
+$now_timestamp     = time(); // Horodatage UTC, cohérent avec strtotime()
 
 if ( $is_multi_trip && ! empty( $trips_list ) ) {
     // Analyse de chaque course du panier
@@ -81,8 +90,12 @@ if ( $is_multi_trip && ! empty( $trips_list ) ) {
     }
 }
 
+// 💡 NOUVEAU : Calcul de la visibilité des pourboires (une fois toutes les variables connues)
+$is_custom_quote   = ( 'Custom Quote' === $price_val || floatval( $price_val ) <= 0 );
+$hide_tip_section  = ( $is_urgent_booking || $is_upon_request || $is_custom_quote );
+
 // 4. TEMPS D'ATTENTE GRATUIT DYNAMIQUE (Valeur par défaut garantie)
-$dynamic_wait_time_text = '15 min complimentary wait time included';
+$dynamic_wait_time_text = ETB_I18n::t( '15 min complimentary wait time included' );
 $airport_regex          = '/\b(airport|aeroport|aéroport|terminal|aeropuerto|flughafen|nce|cdg|ory|heathrow|gatwick|jfk)\b/iu';
 $has_airport_pickup     = false;
 $has_city_pickup        = false;
@@ -101,11 +114,36 @@ if ( $is_multi_trip && ! empty( $trips_list ) ) {
 }
 
 if ( $has_airport_pickup && ! $has_city_pickup ) {
-    $dynamic_wait_time_text = '60 min complimentary wait time included (flight tracking)';
+    $dynamic_wait_time_text = ETB_I18n::t( '60 min complimentary wait time included (flight tracking)' );
 } elseif ( $has_airport_pickup && $has_city_pickup ) {
-    $dynamic_wait_time_text = '60 min for airport pickups · 15 min for city transfers';
+    $dynamic_wait_time_text = ETB_I18n::t( '60 min for airport pickups · 15 min for city transfers' );
 } else {
-    $dynamic_wait_time_text = '15 min complimentary wait time included';
+    $dynamic_wait_time_text = ETB_I18n::t( '15 min complimentary wait time included' );
+}
+
+// 5. DÉLAI D'ANNULATION GRATUITE SELON LE(S) VÉHICULE(S) CHOISI(S)
+// Multi-trajets : on retient le délai le plus restrictif (minimum) du panier.
+$free_cancel_hours  = 2;
+$cancel_vehicle_ids = array();
+if ( $is_multi_trip && ! empty( $trips_list ) ) {
+    foreach ( $trips_list as $t ) {
+        $vid = absint( $t['vehicle_id'] ?? 0 );
+        if ( $vid ) {
+            $cancel_vehicle_ids[] = $vid;
+        }
+    }
+}
+if ( empty( $cancel_vehicle_ids ) && $vehicle_id ) {
+    $cancel_vehicle_ids[] = absint( $vehicle_id );
+}
+$cancel_vehicle_ids = array_unique( $cancel_vehicle_ids );
+if ( ! empty( $cancel_vehicle_ids ) ) {
+    $cancel_vals = array();
+    foreach ( $cancel_vehicle_ids as $vid ) {
+        $m             = get_post_meta( $vid, '_etb_free_cancel_hours', true );
+        $cancel_vals[] = ( '' === $m ) ? 2 : max( 0, absint( $m ) );
+    }
+    $free_cancel_hours = min( $cancel_vals );
 }
 ?>
 
@@ -116,13 +154,13 @@ if ( $has_airport_pickup && ! $has_city_pickup ) {
         <div>
             <a href="javascript:history.back();" class="etb-checkout-back-link">
                 <span class="dashicons dashicons-arrow-left-alt2"></span>
-                <span>Edit Ride Details</span>
+                <span><?php echo esc_html( ETB_I18n::t( 'Edit Ride Details' ) ); ?></span>
             </a>
-            <h1 class="etb-checkout-page-title">Finalize Your VIP Reservation</h1>
+            <h1 class="etb-checkout-page-title"><?php echo esc_html( ETB_I18n::t( 'Finalize Your VIP Reservation' ) ); ?></h1>
         </div>
 
         <!-- BOUTON SWITCHER THÈME (PILULE COULISSANTE VIP) -->
-        <button type="button" class="etb-theme-toggle-btn etb-theme-switch" aria-label="Basculer le thème">
+        <button type="button" class="etb-theme-toggle-btn etb-theme-switch" aria-label="<?php echo esc_attr( ETB_I18n::t( 'Toggle theme' ) ); ?>">
             <span class="etb-switch-track">
                 <svg class="etb-icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                     <circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
@@ -137,9 +175,10 @@ if ( $has_airport_pickup && ! $has_city_pickup ) {
 
     <!-- Formulaire englobant les 2 colonnes -->
     <form id="etb-checkout-form" onsubmit="return false;">
-        
+
         <!-- Champs de sécurité invisibles immunisés contre l'Autofill -->
         <div style="position: absolute !important; left: -9999px !important; opacity: 0 !important; width: 0 !important; height: 0 !important; overflow: hidden !important;" aria-hidden="true">
+            <?php echo class_exists( 'ETB_Security' ) ? ETB_Security::get_honeypot_html() : ''; ?>
             <input type="text" name="etb_antibot_check" value="" tabindex="-1" autocomplete="new-password" aria-hidden="true">
             <input type="hidden" name="etb_sec_time" value="<?php echo esc_attr( $sec_token['time'] ); ?>">
             <input type="hidden" name="etb_sec_token" value="<?php echo esc_attr( $sec_token['token'] ); ?>">
@@ -156,6 +195,7 @@ if ( $has_airport_pickup && ! $has_city_pickup ) {
         <input type="hidden" name="etb_vehicle_id" id="etb-chk-vehicle-id" value="<?php echo esc_attr( $vehicle_id ); ?>">
         <input type="hidden" name="etb_calculated_price" id="etb-chk-price" value="<?php echo esc_attr( $price_val ); ?>">
         <input type="hidden" name="etb_is_urgent" id="etb-chk-is-urgent" value="<?php echo $is_urgent_booking ? '1' : '0'; ?>">
+        <input type="hidden" name="etb_is_upon_request" id="etb-chk-is-upon-request" value="<?php echo $is_upon_request ? '1' : '0'; ?>">
         <input type="hidden" name="etb_is_multi_trip" id="etb-chk-is-multi-trip" value="<?php echo $is_multi_trip ? '1' : '0'; ?>">
         <!-- ============================================================== -->
         <!-- LE CONTENEUR 2 COLONNES (CSS GRID)                             -->
@@ -176,23 +216,23 @@ if ( $has_airport_pickup && ! $has_city_pickup ) {
                     <div class="etb-checkout-card" id="etb-chk-airport-card" style="display: none;">
                         <div class="etb-checkout-card-header">
                             <span class="etb-chk-badge-icon">
-                                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fbac18" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                     <path d="M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z"/>
                                 </svg>
                             </span>
                             <div>
-                                <h3 id="etb-chk-airport-title">Airport Arrival</h3>
-                                <p id="etb-chk-airport-desc">Real-time flight tracking included.</p>
+                                <h3 id="etb-chk-airport-title"><?php echo esc_html( ETB_I18n::t( 'Airport Arrival' ) ); ?></h3>
+                                <p id="etb-chk-airport-desc"><?php echo esc_html( ETB_I18n::t( 'Real-time flight tracking included.' ) ); ?></p>
                             </div>
                         </div>
                         
                         <div id="etb-chk-airport-grid" class="etb-chk-grid-2">
                             <div id="etb-chk-flight-field">
                                 <div class="etb-floating-field">
-                                    <label for="etb-flight-number" id="etb-chk-flight-label">Flight Number</label>
-                                    <input type="text" name="etb_flight_number" id="etb-flight-number" placeholder="e.g. BA 342, DL 401..." autocomplete="off">
+                                    <label for="etb-flight-number" id="etb-chk-flight-label"><?php echo esc_html( ETB_I18n::t( 'Flight Number' ) ); ?></label>
+                                    <input type="text" name="etb_flight_number" id="etb-flight-number" placeholder="<?php echo esc_attr( ETB_I18n::t( 'e.g. BA 342, DL 401...' ) ); ?>" autocomplete="off">
                                 </div>
-                                <small class="etb-chk-hint" id="etb-chk-flight-hint">1 hour free waiting time included after landing.</small>
+                                <small class="etb-chk-hint" id="etb-chk-flight-hint"><?php echo esc_html( ETB_I18n::t( '1 hour free waiting time included after landing.' ) ); ?></small>
                             </div>
                         </div>
                     </div>
@@ -201,14 +241,14 @@ if ( $has_airport_pickup && ! $has_city_pickup ) {
                     <div class="etb-checkout-card">
                         <div class="etb-checkout-card-header">
                             <span class="etb-chk-badge-icon">
-                                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fbac18" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                     <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/>
                                     <circle cx="12" cy="7" r="4"/>
                                 </svg>
                             </span>
                             <div>
-                                <h3>Passenger Information</h3>
-                                <p>Select whether you are riding yourself or booking on behalf of someone else.</p>
+                                <h3><?php echo esc_html( ETB_I18n::t( 'Passenger Information' ) ); ?></h3>
+                                <p><?php echo esc_html( ETB_I18n::t( 'Select whether you are riding yourself or booking on behalf of someone else.' ) ); ?></p>
                             </div>
                         </div>
 
@@ -217,12 +257,12 @@ if ( $has_airport_pickup && ! $has_city_pickup ) {
                             <label class="etb-chk-radio-pill active" id="etb-toggle-myself">
                                 <input type="radio" name="etb_booker_type" value="myself" checked>
                                 <span class="dashicons dashicons-admin-users"></span>
-                                <span>I am the passenger</span>
+                                <span><?php echo esc_html( ETB_I18n::t( 'I am the passenger' ) ); ?></span>
                             </label>
                             <label class="etb-chk-radio-pill" id="etb-toggle-guest">
                                 <input type="radio" name="etb_booker_type" value="guest">
                                 <span class="dashicons dashicons-businessman"></span>
-                                <span>Booking for someone else</span>
+                                <span><?php echo esc_html( ETB_I18n::t( 'Booking for someone else' ) ); ?></span>
                             </label>
                         </div>
 
@@ -230,14 +270,14 @@ if ( $has_airport_pickup && ! $has_city_pickup ) {
                         <div class="etb-chk-grid-2" style="margin-top: 18px;">
                             <div>
                                 <div class="etb-floating-field">
-                                    <label for="etb-passenger-first-name">First Name *</label>
-                                    <input type="text" name="etb_first_name" id="etb-passenger-first-name" placeholder="e.g. Bruce" required>
+                                    <label for="etb-passenger-first-name"><?php echo esc_html( ETB_I18n::t( 'First Name *' ) ); ?></label>
+                                    <input type="text" name="etb_first_name" id="etb-passenger-first-name" placeholder="<?php echo esc_attr( ETB_I18n::t( 'e.g. Bruce' ) ); ?>" required>
                                 </div>
                             </div>
                             <div>
                                 <div class="etb-floating-field">
-                                    <label for="etb-passenger-last-name">Last Name *</label>
-                                    <input type="text" name="etb_last_name" id="etb-passenger-last-name" placeholder="e.g. Wayne" required>
+                                    <label for="etb-passenger-last-name"><?php echo esc_html( ETB_I18n::t( 'Last Name *' ) ); ?></label>
+                                    <input type="text" name="etb_last_name" id="etb-passenger-last-name" placeholder="<?php echo esc_attr( ETB_I18n::t( 'e.g. Wayne' ) ); ?>" required>
                                 </div>
                             </div>
                         </div>
@@ -245,39 +285,39 @@ if ( $has_airport_pickup && ! $has_city_pickup ) {
                         <div class="etb-chk-grid-2" style="margin-top: 4px;">
                             <div>
                                 <div class="etb-floating-field">
-                                    <label for="etb-passenger-email">Email Address *</label>
+                                    <label for="etb-passenger-email"><?php echo esc_html( ETB_I18n::t( 'Email Address *' ) ); ?></label>
                                     <input type="email" name="etb_email" id="etb-passenger-email" placeholder="email@domain.com" required>
                                 </div>
-                                <small class="etb-chk-hint">Ride confirmation and invoice sent here.</small>
+                                <small class="etb-chk-hint"><?php echo esc_html( ETB_I18n::t( 'Ride confirmation and invoice sent here.' ) ); ?></small>
                             </div>
                             <div>
                                 <div class="etb-floating-field">
-                                    <label for="etb-passenger-phone">Mobile Phone *</label>
+                                    <label for="etb-passenger-phone"><?php echo esc_html( ETB_I18n::t( 'Mobile Phone *' ) ); ?></label>
                                     <input type="tel" name="etb_phone" id="etb-passenger-phone" class="etb-phone-field" placeholder="6 12 34 56 78" required>
                                 </div>
-                                <small class="etb-chk-hint">Chauffeur SMS or call before arrival.</small>
+                                <small class="etb-chk-hint"><?php echo esc_html( ETB_I18n::t( 'Chauffeur SMS or call before arrival.' ) ); ?></small>
                             </div>
                         </div>
 
                         <!-- Champ Pancarte Chauffeur (Greeting Sign) calé à 50% sous la colonne Email -->
                         <div class="etb-chk-grid-2">
                             <div class="etb-chk-field" id="etb-chk-sign-field" style="display: none; margin-top: 6px;">
-                                <label for="etb-pickup-sign">Name on Chauffeur Greeting Sign</label>
-                                <input type="text" name="etb_pickup_sign" id="etb-pickup-sign" placeholder="e.g. Mr. Bruce Wayne, Acme Corp..." autocomplete="off">
-                                <small class="etb-chk-hint">Name displayed on the welcome sign at arrival.</small>
+                                <label for="etb-pickup-sign"><?php echo esc_html( ETB_I18n::t( 'Name on Chauffeur Greeting Sign' ) ); ?></label>
+                                <input type="text" name="etb_pickup_sign" id="etb-pickup-sign" placeholder="<?php echo esc_attr( ETB_I18n::t( 'e.g. Mr. Bruce Wayne, Acme Corp...' ) ); ?>" autocomplete="off">
+                                <small class="etb-chk-hint"><?php echo esc_html( ETB_I18n::t( 'Name displayed on the welcome sign at arrival.' ) ); ?></small>
                             </div>
                         </div>
 
                         <!-- Champs additionnels Booker / Assistant -->
-                        <div id="etb-guest-booker-fields" style="display: none; border-top: 1px dashed rgba(255,255,255,0.1); padding-top: 16px; margin-top: 10px;">
-                            <h4 style="color: #fbac18; font-size: 13px; text-transform: uppercase; margin: 0 0 10px 0;">Booker / Assistant Information</h4>
+                        <div id="etb-guest-booker-fields" style="display: none; border-top: 1px dashed var(--etb-border-light); padding-top: 16px; margin-top: 10px;">
+                            <h4 style="color: var(--etb-accent-gold); font-size: 13px; text-transform: uppercase; margin: 0 0 10px 0;"><?php echo esc_html( ETB_I18n::t( 'Booker / Assistant Information' ) ); ?></h4>
                             <div class="etb-chk-grid-2">
                                 <div class="etb-chk-field">
-                                    <label for="etb-booker-name">Booker Full Name</label>
-                                    <input type="text" name="etb_booker_name" id="etb-booker-name" placeholder="Assistant / Company Name">
+                                    <label for="etb-booker-name"><?php echo esc_html( ETB_I18n::t( 'Booker Full Name' ) ); ?></label>
+                                    <input type="text" name="etb_booker_name" id="etb-booker-name" placeholder="<?php echo esc_attr( ETB_I18n::t( 'Assistant / Company Name' ) ); ?>">
                                 </div>
                                 <div class="etb-chk-field">
-                                    <label for="etb-booker-email">Booker Email (for invoice copy)</label>
+                                    <label for="etb-booker-email"><?php echo esc_html( ETB_I18n::t( 'Booker Email (for invoice copy)' ) ); ?></label>
                                     <input type="email" name="etb_booker_email" id="etb-booker-email" placeholder="assistant@corp.com">
                                 </div>
                             </div>
@@ -287,19 +327,19 @@ if ( $has_airport_pickup && ! $has_city_pickup ) {
                             <!-- CONSIGNES DE CONCIERGERIE VIP AU-DESSUS DES ONGLETS (Empilé pour Mobile) -->
                             <div style="display: flex; flex-direction: column; gap: 4px; margin-top: 24px; margin-bottom: 12px;">
                                 <span style="font-size: 11.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; color: var(--etb-accent-gold, #fbac18);">
-                                    Configure Each Transfer
+                                    <?php echo esc_html( ETB_I18n::t( 'Configure Each Transfer' ) ); ?>
                                 </span>
                                 <span style="font-size: 11.5px; color: var(--etb-text-secondary, #94a3b8); line-height: 1.4;">
-                                    Select a trip below to adjust passengers & luggage for that specific vehicle.
+                                    <?php echo esc_html( ETB_I18n::t( 'Select a trip below to adjust passengers & luggage for that specific vehicle.' ) ); ?>
                                 </span>
                             </div>
 
                             <!-- 1. RANGÉE D'ONGLETS COMPACTS ENRICHIE -->
                             <div class="etb-chk-leg-tabs" id="etb-chk-leg-tabs" style="display: flex; gap: 8px; margin-bottom: 12px; overflow-x: auto; padding-bottom: 4px;">
                                 <?php foreach ( $trips_list as $l_idx => $leg ) : 
-                                    $route_label = ( 'hourly' === $leg['mode'] ) ? sprintf( 'By the hour (%sh)', $leg['duration'] ) : ( $leg['pickup'] . ' → ' . $leg['dropoff'] );
+                                    $route_label = ( 'hourly' === $leg['mode'] ) ? sprintf( ETB_I18n::t( 'By the hour (%sh)' ), $leg['duration'] ) : ( $leg['pickup'] . ' → ' . $leg['dropoff'] );
                                     $leg_ts = strtotime( $leg['date'] );
-                                    $leg_date_formatted = ( $leg_ts ? date( 'D, d M Y', $leg_ts ) : $leg['date'] ) . ( ! empty( $leg['time'] ) ? ' • ' . $leg['time'] : '' );
+                                    $leg_date_formatted = ( $leg_ts ? ETB_I18n::date( 'D, d M Y', $leg_ts ) : $leg['date'] ) . ( ! empty( $leg['time'] ) ? ' • ' . $leg['time'] : '' );
                                 ?>
                                     <button type="button" class="etb-chk-leg-tab-btn <?php echo ( 0 === $l_idx ) ? 'active' : ''; ?>" 
                                             data-leg-index="<?php echo esc_attr( $l_idx ); ?>"
@@ -311,9 +351,8 @@ if ( $has_airport_pickup && ! $has_city_pickup ) {
                                             data-mode="<?php echo esc_attr( $leg['mode'] ?? 'transfer' ); ?>"
                                             data-duration="<?php echo esc_attr( $leg['duration'] ?? 4 ); ?>"
                                             data-pickup="<?php echo esc_attr( $leg['pickup'] ?? '' ); ?>"
-                                            data-dropoff="<?php echo esc_attr( $leg['dropoff'] ?? '' ); ?>"
-                                            style="padding: 7px 16px; border-radius: 50px; font-size: 12px; font-weight: 700; cursor: pointer; transition: all 0.2s ease; white-space: nowrap; border: 1.5px solid <?php echo ( 0 === $l_idx ) ? 'var(--etb-accent-gold, #fbac18)' : 'var(--etb-border-light, rgba(255,255,255,0.12))'; ?>; background: <?php echo ( 0 === $l_idx ) ? 'rgba(251, 172, 24, 0.15)' : 'rgba(255,255,255,0.03)'; ?>; color: <?php echo ( 0 === $l_idx ) ? 'var(--etb-accent-gold, #fbac18)' : 'var(--etb-text-secondary, #94a3b8)'; ?>;">
-                                        Trip #<?php echo esc_html( $l_idx + 1 ); ?>
+                                            data-dropoff="<?php echo esc_attr( $leg['dropoff'] ?? '' ); ?>">
+                                        <?php echo esc_html( ETB_I18n::t( 'Trip #' ) ); ?><?php echo esc_html( $l_idx + 1 ); ?>
                                     </button>
                                 <?php endforeach; ?>
                             </div>
@@ -323,7 +362,7 @@ if ( $has_airport_pickup && ! $has_city_pickup ) {
                             <?php 
                             $first_leg = $trips_list[0];
                             $first_ts  = strtotime( $first_leg['date'] );
-                            $first_date_formatted = ( $first_ts ? date( 'D, d M Y', $first_ts ) : $first_leg['date'] ) . ( ! empty( $first_leg['time'] ) ? ' • ' . $first_leg['time'] : '' );
+                            $first_date_formatted = ( $first_ts ? ETB_I18n::date( 'D, d M Y', $first_ts ) : $first_leg['date'] ) . ( ! empty( $first_leg['time'] ) ? ' • ' . $first_leg['time'] : '' );
                             ?>
                             <div id="etb-chk-active-leg-info" style="display: flex; flex-direction: column; gap: 6px; background: rgba(255,255,255,0.02); border: 1px solid var(--etb-border-light, rgba(255,255,255,0.08)); border-radius: 8px; padding: 12px 14px; margin-bottom: 16px;">
                                 <!-- Ligne 1 : Véhicule -->
@@ -336,19 +375,19 @@ if ( $has_airport_pickup && ! $has_city_pickup ) {
                                     <?php if ( 'hourly' === $first_leg['mode'] ) : ?>
                                         <div style="display: flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--etb-accent-gold, #fbac18);">
                                             <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
-                                            <strong>By the hour (<?php echo esc_html( $first_leg['duration'] ); ?> Hours Charter)</strong>
+                                            <strong><?php echo esc_html( sprintf( ETB_I18n::t( 'By the hour (%s Hours Charter)' ), $first_leg['duration'] ) ); ?></strong>
                                         </div>
                                         <div style="display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--etb-text-secondary, #64748b); overflow: hidden;">
-                                            <span style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #22c55e; flex-shrink: 0;" title="Pickup"></span>
+                                            <span style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--etb-success); flex-shrink: 0;" title="<?php echo esc_attr( ETB_I18n::t( 'Pickup' ) ); ?>"></span>
                                             <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"><?php echo esc_html( $first_leg['pickup'] ); ?></span>
                                         </div>
                                     <?php else : ?>
                                         <div style="display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--etb-text-secondary, #64748b); overflow: hidden;">
-                                            <span style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #22c55e; flex-shrink: 0;" title="Pickup"></span>
+                                            <span style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--etb-success); flex-shrink: 0;" title="<?php echo esc_attr( ETB_I18n::t( 'Pickup' ) ); ?>"></span>
                                             <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"><?php echo esc_html( $first_leg['pickup'] ); ?></span>
                                         </div>
                                         <div style="display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--etb-text-secondary, #64748b); overflow: hidden;">
-                                            <span style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--etb-accent-gold, #fbac18); flex-shrink: 0;" title="Drop-off"></span>
+                                            <span style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--etb-accent-gold, #fbac18); flex-shrink: 0;" title="<?php echo esc_attr( ETB_I18n::t( 'Drop-off' ) ); ?>"></span>
                                             <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"><?php echo esc_html( $first_leg['dropoff'] ); ?></span>
                                         </div>
                                     <?php endif; ?>
@@ -373,7 +412,7 @@ if ( $has_airport_pickup && ! $has_city_pickup ) {
                             <!-- 1. Passengers -->
                             <div class="etb-chk-cap-item" style="display: flex; flex-direction: column; align-items: center; text-align: center;">
                                 <div class="etb-chk-cap-label" style="display: flex; flex-direction: column; align-items: center; width: 100%;">
-                                    <span class="etb-cap-svg-wrap" style="color: #fbac18; display: flex; align-items: center; justify-content: center; height: 32px; width: 100%; margin-bottom: 6px; flex-shrink: 0;">
+                                    <span class="etb-cap-svg-wrap" style="color: var(--etb-accent-gold); display: flex; align-items: center; justify-content: center; height: 32px; width: 100%; margin-bottom: 6px; flex-shrink: 0;">
                                         <svg viewBox="0 5 100 88" style="height: 26px; width: auto; max-width: 32px; display: block;" fill="currentColor">
                                             <path d="m88.484 31.117c0 8.0312-6.5117 14.539-14.539 14.539-8.0312 0-14.543-6.5078-14.543-14.539s6.5117-14.539 14.543-14.543c8.0273 0 14.539 6.5117 14.539 14.543z"/>
                                             <path d="m0.90234 73.273c-3.0547 6.2812 2.0391 15.633 9.6914 17.562 16.133 3.6016 32.57 3.6016 48.703 0 7.6562-1.9336 12.75-11.281 9.6914-17.562-5.7109-11.867-18.844-22.293-34.047-22.391-15.203 0.10156-28.336 10.523-34.047 22.391z"/>
@@ -382,8 +421,8 @@ if ( $has_airport_pickup && ! $has_city_pickup ) {
                                         </svg>
                                     </span>
                                     <div>
-                                        <strong>Passengers</strong>
-                                        <small id="etb-chk-max-pax-hint" style="display: block; color: var(--etb-text-secondary, #94a3b8); font-size: 11px;">Max: <?php echo esc_html( $pax_count ); ?></small>
+                                        <strong><?php echo esc_html( ETB_I18n::t( 'Passengers' ) ); ?></strong>
+                                        <small id="etb-chk-max-pax-hint" style="display: block; color: var(--etb-text-secondary, #94a3b8); font-size: 11px;"><?php echo esc_html( ETB_I18n::t( 'Max:' ) ); ?> <?php echo esc_html( $pax_count ); ?></small>
                                     </div>
                                 </div>
                                 <div class="etb-chk-qty-control" style="margin-top: 10px;">
@@ -396,14 +435,14 @@ if ( $has_airport_pickup && ! $has_city_pickup ) {
                             <!-- 2. Checked Luggage (Big Bags) -->
                             <div class="etb-chk-cap-item" style="display: flex; flex-direction: column; align-items: center; text-align: center;">
                                 <div class="etb-chk-cap-label" style="display: flex; flex-direction: column; align-items: center; width: 100%;">
-                                    <span class="etb-cap-svg-wrap" style="color: #fbac18; display: flex; align-items: center; justify-content: center; height: 32px; width: 100%; margin-bottom: 6px; flex-shrink: 0;">
+                                    <span class="etb-cap-svg-wrap" style="color: var(--etb-accent-gold); display: flex; align-items: center; justify-content: center; height: 32px; width: 100%; margin-bottom: 6px; flex-shrink: 0;">
                                         <svg viewBox="20 4 60 92" style="height: 26px; width: auto; max-width: 32px; display: block;" fill="currentColor">
                                             <path d="m67.926 16.59h-2.0273v-5.4023c0-3.4102-2.7734-6.1875-6.1875-6.1875h-19.426c-3.4102 0-6.1875 2.7734-6.1875 6.1875v5.4023h-2.0273c-6.4961 0-11.781 5.2852-11.781 11.781v46.938c0 5.7852 4.1953 10.602 9.7031 11.586-0.71094 0.85938-1.1562 1.9453-1.1562 3.1484 0 2.7383 2.2188 4.957 4.957 4.957s4.957-2.2188 4.957-4.957c0-1.1133-0.37891-2.125-0.99609-2.9531h24.492c-0.61719 0.82812-0.99609 1.8438-0.99609 2.9531 0 2.7383 2.2188 4.957 4.957 4.957s4.957-2.2188 4.957-4.957c0-1.2031-0.44531-2.2891-1.1562-3.1484 5.5078-0.98438 9.7031-5.8008 9.7031-11.586l-0.003907-46.938c0-6.4961-5.2852-11.781-11.781-11.781zm-0.046875 18.418v33.664c0 1.1055-0.89453 2-2 2-1.1055 0-2-0.89453-2-2v-33.664c0-1.1055 0.89453-2 2-2 1.1055 0 2 0.89453 2 2zm-27.781-23.82c0-0.10156 0.085938-0.1875 0.1875-0.1875h19.426c0.10547 0 0.1875 0.085938 0.1875 0.1875v5.4023h-19.805v-5.4023zm-7.9766 23.82c0-1.1055 0.89453-2 2-2 1.1055 0 2 0.89453 2 2v33.664c0 1.1055-0.89453 2-2 2-1.1055 0-2-0.89453-2-2zm19.879 33.664c0 1.1055-0.89453 2-2 2s-2-0.89453-2-2v-33.664c0-1.1055 0.89453-2 2-2s2 0.89453 2 2z"/>
                                         </svg>
                                     </span>
                                     <div>
-                                        <strong>Checked Luggage</strong>
-                                        <small style="display: block; color: var(--etb-text-secondary, #94a3b8); font-size: 11px;">Large suitcase</small>
+                                        <strong><?php echo esc_html( ETB_I18n::t( 'Checked Luggage' ) ); ?></strong>
+                                        <small style="display: block; color: var(--etb-text-secondary, #94a3b8); font-size: 11px;"><?php echo esc_html( ETB_I18n::t( 'Large suitcase' ) ); ?></small>
                                     </div>
                                 </div>
                                 <div class="etb-chk-qty-control" style="margin-top: 10px;">
@@ -416,14 +455,14 @@ if ( $has_airport_pickup && ! $has_city_pickup ) {
                             <!-- 3. Cabin Bags (Hand luggage) -->
                             <div class="etb-chk-cap-item" style="display: flex; flex-direction: column; align-items: center; text-align: center;">
                                 <div class="etb-chk-cap-label" style="display: flex; flex-direction: column; align-items: center; width: 100%;">
-                                    <span class="etb-cap-svg-wrap" style="color: #fbac18; display: flex; align-items: center; justify-content: center; height: 32px; width: 100%; margin-bottom: 6px; flex-shrink: 0;">
+                                    <span class="etb-cap-svg-wrap" style="color: var(--etb-accent-gold); display: flex; align-items: center; justify-content: center; height: 32px; width: 100%; margin-bottom: 6px; flex-shrink: 0;">
                                         <svg viewBox="10 5 80 85" style="height: 26px; width: auto; max-width: 32px; display: block;" fill="currentColor">
                                             <path d="m25 11.109c-3.0469 0-5.5547 2.5078-5.5547 5.5547v12.965h3.7031v-12.961c0-1.043 0.80859-1.8516 1.8516-1.8516h11.109c1.043 0 1.8516 0.80859 1.8516 1.8516l0.003906 12.961h3.7031v-12.961c0-3.0469-2.5117-5.5586-5.5586-5.5586zm-8.332 22.223c-3.0469 0-5.5586 2.5117-5.5586 5.5586v37.031h9.2617v-29.625c0-0.49219 0.19531-0.96094 0.54297-1.3086 0.34766-0.34766 0.81641-0.54297 1.3086-0.54297 0.49219 0 0.96094 0.19531 1.3086 0.54297 0.34766 0.34766 0.54297 0.81641 0.54297 1.3086v29.625h9.2578v-24.07c0-1.9648 0.78125-3.8477 2.1719-5.2383 1.3867-1.3867 3.2734-2.168 5.2383-2.168h9.2578v-5.5547c0-3.0469-2.5078-5.5547-5.5547-5.5547zm42.594 0c-3.0469 0-5.5547 2.5078-5.5547 5.5547l-0.003906 5.5586h3.7031v-5.5547c0-1.043 0.80859-1.8516 1.8516-1.8516h7.4062c1.043 0 1.8516 0.80859 1.8516 1.8516l0.003906 5.5547h3.7031v-5.5547c0-3.0469-2.5078-5.5547-5.5547-5.5547zm-16.668 14.816c-3.0469 0-5.5547 2.5078-5.5547 5.5547l-0.003906 22.219h9.2617v-16.172c0-1.0234 0.82812-1.8516 1.8516-1.8516 1.0234 0 1.8516 0.82812 1.8516 1.8516v16.172h25.926v-16.172c0-1.0234 0.82812-1.8516 1.8516-1.8516 1.0234 0 1.8516 0.82812 1.8516 1.8516v16.172h9.2578l0.003906-22.219c0-3.0469-2.5078-5.5547-5.5547-5.5547zm-31.484 31.477v3.707c0 3.0469 2.5078 5.5547 5.5547 5.5547h17.656l0.003907 0.003906c-0.64844-1.1289-0.99219-2.4062-0.99219-3.707v-5.5586zm25.926 0v3.707c0 3.0469 2.5078 5.5547 5.5547 5.5547h40.742c3.0469 0 5.5547-2.5078 5.5547-5.5547v-3.707z"/>
                                         </svg>
                                     </span>
                                     <div>
-                                        <strong>Cabin Bags</strong>
-                                        <small style="display: block; color: var(--etb-text-secondary, #94a3b8); font-size: 11px;">Hand luggage</small>
+                                        <strong><?php echo esc_html( ETB_I18n::t( 'Cabin Bags' ) ); ?></strong>
+                                        <small style="display: block; color: var(--etb-text-secondary, #94a3b8); font-size: 11px;"><?php echo esc_html( ETB_I18n::t( 'Hand luggage' ) ); ?></small>
                                     </div>
                                 </div>
                                 <div class="etb-chk-qty-control" style="margin-top: 10px;">
@@ -440,13 +479,13 @@ if ( $has_airport_pickup && ! $has_city_pickup ) {
                     <div class="etb-checkout-card">
                         <div class="etb-checkout-card-header">
                             <span class="etb-chk-badge-icon">
-                                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fbac18" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                     <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
                                 </svg>
                             </span>
                             <div>
-                                <h3>Special Requests & Chauffeur Notes</h3>
-                                <p>Provide specific access codes, child seating needs, or luggage preferences.</p>
+                                <h3><?php echo esc_html( ETB_I18n::t( 'Special Requests & Chauffeur Notes' ) ); ?></h3>
+                                <p><?php echo esc_html( ETB_I18n::t( 'Provide specific access codes, child seating needs, or luggage preferences.' ) ); ?></p>
                             </div>
                         </div>
 
@@ -457,25 +496,25 @@ if ( $has_airport_pickup && ! $has_city_pickup ) {
                             <div class="etb-chk-child-seats-box">
                                 <div class="etb-chk-seat-top-row">
                                     <div class="etb-chk-seat-info">
-                                        <span class="etb-seat-svg-icon" aria-hidden="true" style="display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; color: #fbac18; flex-shrink: 0;">
+                                        <span class="etb-seat-svg-icon" aria-hidden="true" style="display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; color: var(--etb-accent-gold); flex-shrink: 0;">
                                             <svg viewBox="0 0 100 100" width="22" height="22" fill="currentColor">
                                                 <path d="M 72.317,5.001 A 9.686,9.686 0 0 0 62.784,15.594 c 0.514,0.178 1.013,0.368 1.513,0.605 7.244,3.44 10.383,12.198 6.961,19.445 -1.041,2.187 -2.619,3.946 -4.464,5.296 l 13.052,-6.999 2.27,4.237 -15.624,8.398 c 1.599,2.867 1.884,6.389 0.378,9.571 -1.102,2.344 -6.844,14.419 -8.058,16.948 -0.833,1.747 -1.931,3.298 -3.216,4.615 l 2.459,5.372 -4.388,2.005 -2.005,-4.388 c -4.748,2.666 -10.657,3.089 -15.927,0.605 l -2.856,-1.379 c -2.856,-1.379 -4.97,-3.408 -6.62,-5.485 -1.611,-2.034 -2.391,-4.336 -3.026,-6.469 -2.387,1.562 -4.899,3.184 -6.166,4.086 -2.445,1.706 -5.524,1.91 -8.134,0.832 a 9.695,9.695 0 0 0 2.005,8.474 l 7.301,8.739 a 9.686,9.686 0 0 0 7.453,3.48 l 27.276,0 a 9.686,9.686 0 0 0 8.739,-5.561 l 24.552,-51.904 a 9.686,9.686 0 0 0 0.189,-7.869 L 81.434,11.054 A 9.686,9.686 0 0 0 72.317,5.001 z M 57.45,18.431 c -3.886,0.216 -7.558,2.522 -9.344,6.28 -2.598,5.489 -0.233,12.017 5.258,14.603 5.471,2.603 11.2,0.246 14.603,-5.221 2.588,-5.481 0.261,-11.2 -5.221,-14.603 -1.71,-0.81 -3.53,-1.157 -5.296,-1.059 z M 34.486,28.683 c -0.612,0.05 -1.2,0.225 -1.778,0.53 -2.326,1.203 -3.216,4.04 -2.005,6.356 l 5.561,10.706 c 0.604,1.149 1.628,1.989 2.875,2.345 l 5.675,1.665 -1.665,3.367 16.494,-8.852 c -0.132,-0.057 -0.275,-0.107 -0.416,-0.151 0,0 -12.451,-3.643 -15.511,-4.54 -1.289,-2.48 -4.615,-8.928 -4.615,-8.928 -0.912,-1.728 -2.779,-2.646 -4.615,-2.497 z M 63.389,48.279 46.214,57.51 53.894,74.155 c 0.623,-0.792 1.177,-1.66 1.627,-2.61 1.174,-2.446 6.977,-14.65 8.058,-16.948 0.994,-2.102 0.839,-4.424 -0.189,-6.318 z M 28.812,52.403 c -1.244,0.029 -2.496,0.402 -3.594,1.173 0,0 -9.617,6.54 -13.089,8.966 -2.181,1.55 -2.73,4.579 -1.173,6.772 1.545,2.191 4.579,2.703 6.772,1.173 2.412,-1.717 8.236,-5.39 10.517,-6.999 0,0 1.461,7.322 3.632,10.063 1.432,1.803 3.149,3.429 5.372,4.502 4.288,2.021 9.075,1.668 12.862,-0.567 L 41.031,57.926 38.307,63.449 34.222,55.127 C 32.935,53.289 30.885,52.355 28.812,52.403 z"/>
                                             </svg>
                                         </span>
                                         <div class="etb-chk-seat-text">
-                                            <strong>Baby Seat</strong>
-                                            <span class="etb-chk-seat-age">0–2 years</span>
+                                            <strong><?php echo esc_html( ETB_I18n::t( 'Baby Seat' ) ); ?></strong>
+                                            <span class="etb-chk-seat-age"><?php echo esc_html( ETB_I18n::t( '0–2 years' ) ); ?></span>
                                         </div>
                                     </div>
                                     <div class="etb-chk-qty-control">
-                                        <button type="button" class="etb-chk-qty-btn etb-seat-minus" aria-label="Decrease baby seats">-</button>
+                                        <button type="button" class="etb-chk-qty-btn etb-seat-minus" aria-label="<?php echo esc_attr( ETB_I18n::t( 'Decrease baby seats' ) ); ?>">-</button>
                                         <input type="number" name="etb_baby_seat_count" id="etb-chk-baby-seats" value="0" min="0" max="10" readonly>
-                                        <button type="button" class="etb-chk-qty-btn etb-seat-plus" aria-label="Increase baby seats">+</button>
+                                        <button type="button" class="etb-chk-qty-btn etb-seat-plus" aria-label="<?php echo esc_attr( ETB_I18n::t( 'Increase baby seats' ) ); ?>">+</button>
                                     </div>
                                 </div>
                                 <div class="etb-chk-seat-pricing-row">
-                                    <span class="etb-chk-seat-badge-free">1st Free included</span>
-                                    <span class="etb-chk-seat-badge-extra">+50 € per extra</span>
+                                    <span class="etb-chk-seat-badge-free"><?php echo esc_html( ETB_I18n::t( '1 Free' ) ); ?></span>
+                                    <span class="etb-chk-seat-badge-extra"><?php echo esc_html( ETB_I18n::t( '+50 € per extra' ) ); ?></span>
                                 </div>
                             </div>
 
@@ -483,7 +522,7 @@ if ( $has_airport_pickup && ! $has_city_pickup ) {
                             <div class="etb-chk-child-seats-box">
                                 <div class="etb-chk-seat-top-row">
                                     <div class="etb-chk-seat-info">
-                                        <span class="etb-seat-svg-icon" aria-hidden="true" style="display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; color: #fbac18; flex-shrink: 0;">
+                                        <span class="etb-seat-svg-icon" aria-hidden="true" style="display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; color: var(--etb-accent-gold); flex-shrink: 0;">
                                             <svg viewBox="0 0 100 100" width="22" height="22" fill="currentColor">
                                                 <path d="M50.673,29.234c7.425-0.008,13.452-6.03,13.452-13.451c0-7.443-6.025-13.468-13.452-13.451 C43.236,2.316,37.214,8.34,37.219,15.784C37.214,23.205,43.236,29.226,50.673,29.234z"/>
                                                 <path d="M50.673,57.383H36.41V47.062L25.55,58.029c-4.921,4.921-11.581-1.379-6.645-6.32l17.989-18.043 c1.47-1.438,3.068-2.359,5.62-2.38h8.159l0,0h7.995c2.521,0.021,4.229,0.916,5.726,2.38L82.6,51.924 c4.684,4.665-2.157,11.024-6.644,6.267L64.771,47.009v10.373L50.673,57.383z M69,21.086L20.952,65.308 l3.946,4.287l48.05-44.221L69,21.086z"/>
@@ -494,33 +533,33 @@ if ( $has_airport_pickup && ! $has_city_pickup ) {
                                             </svg>
                                         </span>
                                         <div class="etb-chk-seat-text">
-                                            <strong>Booster Seat</strong>
-                                            <span class="etb-chk-seat-age">2–10 years</span>
+                                            <strong><?php echo esc_html( ETB_I18n::t( 'Booster Seat' ) ); ?></strong>
+                                            <span class="etb-chk-seat-age"><?php echo esc_html( ETB_I18n::t( '2–10 years' ) ); ?></span>
                                         </div>
                                     </div>
                                     <div class="etb-chk-qty-control">
-                                        <button type="button" class="etb-chk-qty-btn etb-booster-minus" aria-label="Decrease booster seats">-</button>
+                                        <button type="button" class="etb-chk-qty-btn etb-booster-minus" aria-label="<?php echo esc_attr( ETB_I18n::t( 'Decrease booster seats' ) ); ?>">-</button>
                                         <input type="number" name="etb_booster_seat_count" id="etb-chk-booster-seats" value="0" min="0" max="10" readonly>
                                         <button type="button" class="etb-chk-qty-btn etb-booster-plus">+</button>
                                     </div>
                                 </div>
                                 <div class="etb-chk-seat-pricing-row">
-                                    <span class="etb-chk-seat-badge-free">2 Free included</span>
-                                    <span class="etb-chk-seat-badge-extra">+50 € per extra</span>
+                                    <span class="etb-chk-seat-badge-free"><?php echo esc_html( ETB_I18n::t( '2 Free' ) ); ?></span>
+                                    <span class="etb-chk-seat-badge-extra"><?php echo esc_html( ETB_I18n::t( '+50 € per extra' ) ); ?></span>
                                 </div>
                             </div>
 
                         </div>
 
                         <div class="etb-chk-field" style="margin-top: 15px;">
-                            <label for="etb-chauffeur-notes">Notes for the Chauffeur (Optional)</label>
-                            <textarea name="etb_notes" id="etb-chauffeur-notes" rows="3" placeholder="Hotel room number, gate entry code, assistance with heavy luggage..."></textarea>
+                            <label for="etb-chauffeur-notes"><?php echo esc_html( ETB_I18n::t( 'Notes for the Chauffeur (Optional)' ) ); ?></label>
+                            <textarea name="etb_notes" id="etb-chauffeur-notes" rows="3" placeholder="<?php echo esc_attr( ETB_I18n::t( 'Hotel room number, gate entry code, assistance with heavy luggage...' ) ); ?>"></textarea>
                         </div>
 
                         <div class="etb-chk-field" hidden>
-                            <label for="etb-cost-center">Billing Reference / Cost Center (Optional)</label>
-                            <input type="text" name="etb_cost_center" id="etb-cost-center" placeholder="e.g. PO-84920, Project Alpha...">
-                            <small class="etb-chk-hint">Will appear on your official printable PDF invoice.</small>
+                            <label for="etb-cost-center"><?php echo esc_html( ETB_I18n::t( 'Billing Reference / Cost Center (Optional)' ) ); ?></label>
+                            <input type="text" name="etb_cost_center" id="etb-cost-center" placeholder="<?php echo esc_attr( ETB_I18n::t( 'e.g. PO-84920, Project Alpha...' ) ); ?>">
+                            <small class="etb-chk-hint"><?php echo esc_html( ETB_I18n::t( 'Will appear on your official printable PDF invoice.' ) ); ?></small>
                         </div>
                     </div>
 
@@ -533,37 +572,39 @@ if ( $has_airport_pickup && ! $has_city_pickup ) {
                     
                     <a href="#" class="etb-chk-step-back-link" id="etb-chk-back-to-step1">
                         <span class="dashicons dashicons-arrow-left-alt2"></span>
-                        <span>Back to Passenger Details</span>
+                        <span><?php echo esc_html( ETB_I18n::t( 'Back to Passenger Details' ) ); ?></span>
                     </a>
 
                     <div class="etb-checkout-card">
                         
-                        <!-- En-tête EDEN CAB -->
+                        <!-- En-tête entreprise -->
                         <div class="etb-payment-company-header">
                             <div class="etb-payment-logo-wrap">
-                                <span class="etb-payment-brand-title">EDEN CAB</span>
-                                <span class="etb-payment-brand-sub">superior drive</span>
+                                <span class="etb-payment-brand-title"><?php echo esc_html( $company_legal_name ); ?></span>
+                                <?php if ( $company_subtitle ) : ?>
+                                    <span class="etb-payment-brand-sub"><?php echo esc_html( $company_subtitle ); ?></span>
+                                <?php endif; ?>
                             </div>
                             <div class="etb-payment-company-address">
-                                <p>250 avenue de Grasse</p>
-                                <p>Cannes, 06400 France</p>
+                                <?php if ( $company_addr_1 ) : ?><p><?php echo esc_html( $company_addr_1 ); ?></p><?php endif; ?>
+                                <?php if ( $company_addr_2 ) : ?><p><?php echo esc_html( $company_addr_2 ); ?></p><?php endif; ?>
                             </div>
                         </div>
 
                         <!-- Formulaire Carte Bancaire -->
                         <div class="etb-payment-card-fields" style="margin-top: 15px;">
-                            <h3 class="etb-payment-section-title">Credit Card Information</h3>
+                            <h3 class="etb-payment-section-title"><?php echo esc_html( ETB_I18n::t( 'Credit Card Information' ) ); ?></h3>
                             
                             <!-- Nom sur la carte (Name on Card) -->
                             <div class="etb-chk-field">
-                                <label for="etb-cardholder-name">Name on Card *</label>
-                                <input type="text" id="etb-cardholder-name" name="etb_cardholder_name" placeholder="e.g. Bruce Wayne" autocomplete="cc-name" required>
+                                <label for="etb-cardholder-name"><?php echo esc_html( ETB_I18n::t( 'Name on Card *' ) ); ?></label>
+                                <input type="text" id="etb-cardholder-name" name="etb_cardholder_name" placeholder="<?php echo esc_attr( ETB_I18n::t( 'e.g. Bruce Wayne' ) ); ?>" autocomplete="cc-name" required>
                             </div>
 
                             <!-- Boîtier sécurisé Stripe Elements -->
                             <div class="etb-chk-field">
                                 <div class="etb-card-label-row">
-                                    <label>Credit or Debit Card *</label>
+                                    <label><?php echo esc_html( ETB_I18n::t( 'Credit or Debit Card *' ) ); ?></label>
                                     <div class="etb-card-brand-icons">
                                         <span class="etb-brand-badge visa">VISA</span>
                                         <span class="etb-brand-badge mc">MC</span>
@@ -575,38 +616,38 @@ if ( $has_airport_pickup && ! $has_city_pickup ) {
 
                             <!-- Sélecteur Pays Custom (100% Dark Mode) -->
                             <div class="etb-chk-field">
-                                <label>Billing Country *</label>
+                                <label><?php echo esc_html( ETB_I18n::t( 'Billing Country *' ) ); ?></label>
                                 <input type="hidden" name="etb_card_country" id="etb-card-country" value="FR">
                                 
                                 <div class="etb-custom-select" id="etb-country-custom-select">
                                     <div class="etb-custom-select-trigger">
-                                        <span id="etb-country-selected-label">France</span>
+                                        <span id="etb-country-selected-label"><?php echo esc_html( ETB_I18n::t( 'France' ) ); ?></span>
                                         <span class="dashicons dashicons-arrow-down-alt2"></span>
                                     </div>
                                     <div class="etb-custom-select-options">
-                                        <div class="etb-custom-option selected" data-val="FR">France</div>
-                                        <div class="etb-custom-option" data-val="MC">Monaco</div>
-                                        <div class="etb-custom-option" data-val="US">United States</div>
-                                        <div class="etb-custom-option" data-val="GB">United Kingdom</div>
-                                        <div class="etb-custom-option" data-val="CH">Switzerland</div>
-                                        <div class="etb-custom-option" data-val="DE">Germany</div>
-                                        <div class="etb-custom-option" data-val="IT">Italy</div>
-                                        <div class="etb-custom-option" data-val="BE">Belgium</div>
-                                        <div class="etb-custom-option" data-val="LU">Luxembourg</div>
-                                        <div class="etb-custom-option" data-val="AE">United Arab Emirates</div>
-                                        <div class="etb-custom-option" data-val="CA">Canada</div>
+                                        <div class="etb-custom-option selected" data-val="FR"><?php echo esc_html( ETB_I18n::t( 'France' ) ); ?></div>
+                                        <div class="etb-custom-option" data-val="MC"><?php echo esc_html( ETB_I18n::t( 'Monaco' ) ); ?></div>
+                                        <div class="etb-custom-option" data-val="US"><?php echo esc_html( ETB_I18n::t( 'United States' ) ); ?></div>
+                                        <div class="etb-custom-option" data-val="GB"><?php echo esc_html( ETB_I18n::t( 'United Kingdom' ) ); ?></div>
+                                        <div class="etb-custom-option" data-val="CH"><?php echo esc_html( ETB_I18n::t( 'Switzerland' ) ); ?></div>
+                                        <div class="etb-custom-option" data-val="DE"><?php echo esc_html( ETB_I18n::t( 'Germany' ) ); ?></div>
+                                        <div class="etb-custom-option" data-val="IT"><?php echo esc_html( ETB_I18n::t( 'Italy' ) ); ?></div>
+                                        <div class="etb-custom-option" data-val="BE"><?php echo esc_html( ETB_I18n::t( 'Belgium' ) ); ?></div>
+                                        <div class="etb-custom-option" data-val="LU"><?php echo esc_html( ETB_I18n::t( 'Luxembourg' ) ); ?></div>
+                                        <div class="etb-custom-option" data-val="AE"><?php echo esc_html( ETB_I18n::t( 'United Arab Emirates' ) ); ?></div>
+                                        <div class="etb-custom-option" data-val="CA"><?php echo esc_html( ETB_I18n::t( 'Canada' ) ); ?></div>
                                     </div>
                                 </div>
                             </div>
 
-                            <!-- Mandat d'autorisation différée EDEN CAB -->
+                            <!-- Mandat d'autorisation différée -->
                             <div class="etb-payment-mandate-box">
                                 <label class="etb-mandate-label">
                                     <input type="checkbox" name="etb_save_card" value="1" checked>
-                                    <span><strong>Setup payments for future usage & incidentals</strong></span>
+                                    <span><strong><?php echo esc_html( ETB_I18n::t( 'Setup payments for future usage & incidentals' ) ); ?></strong></span>
                                 </label>
                                 <p class="etb-mandate-legal-text">
-                                    By providing your payment card information, you authorize <strong>EDEN CAB SASU</strong> to charge your card for this service as well as any approved additional charges (extra hours, wait time, unforeseen tolls) in accordance with its terms and conditions.
+                                    <?php echo esc_html( ETB_I18n::t( 'By providing your payment card information, you authorize' ) ); ?> <strong><?php echo esc_html( $company_legal_name ); ?></strong> <?php echo esc_html( ETB_I18n::t( 'to charge your card for this service as well as any approved additional charges (extra hours, wait time, unforeseen tolls) in accordance with its terms and conditions.' ) ); ?>
                                 </p>
                             </div>
                         </div>
@@ -623,7 +664,7 @@ if ( $has_airport_pickup && ! $has_city_pickup ) {
                 <div class="etb-chk-sticky-card">
                     
                     <h3 class="etb-chk-summary-title">
-                        <?php echo $is_multi_trip ? sprintf( 'Trip Summary (%d Transfers)', count( $trips_list ) ) : 'Ride Summary'; ?>
+                        <?php echo $is_multi_trip ? esc_html( sprintf( ETB_I18n::t( 'Trip Summary (%d Transfers)' ), count( $trips_list ) ) ) : esc_html( ETB_I18n::t( 'Ride Summary' ) ); ?>
                     </h3>
 
                     <?php if ( $is_multi_trip ) : ?>
@@ -635,36 +676,36 @@ if ( $has_airport_pickup && ! $has_city_pickup ) {
                                 $t_dt_display = '—';
                                 if ( ! empty( $t['date'] ) ) {
                                     $t_ts = strtotime( $t['date'] );
-                                    $t_dt_display = $t_ts ? date( 'd M. Y', $t_ts ) : $t['date'];
+                                    $t_dt_display = $t_ts ? ETB_I18n::date( 'd M. Y', $t_ts ) : $t['date'];
                                     if ( ! empty( $t['time'] ) ) {
-                                        $t_dt_display .= ' at ' . $t['time'];
+                                        $t_dt_display .= ETB_I18n::t( ' at ' ) . $t['time'];
                                     }
                                 }
                                 $t_price_display = ( 'Custom Quote' === $t['price'] || floatval( $t['price'] ) <= 0 ) 
-                                    ? 'Custom Quote' 
+                                    ? ETB_I18n::t( 'Custom Quote' ) 
                                     : ( number_format_i18n( floatval( $t['price'] ), 0 ) . ' ' . $currency_symbol );
                             ?>
-                                <div class="etb-chk-multi-trip-card" style="background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 10px; padding: 12px 14px;">
+                                <div class="etb-chk-multi-trip-card" style="background: var(--etb-bg-input); border: 1px solid var(--etb-border-main); border-radius: 10px; padding: 12px 14px;">
                                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
                                         <div style="display: flex; align-items: center; gap: 8px;">
-                                            <span style="background: #fbac18; color: #0f172a; font-size: 11px; font-weight: 800; padding: 2px 7px; border-radius: 4px;">#<?php echo esc_html( $idx + 1 ); ?></span>
-                                            <strong style="color: #ffffff; font-size: 13.5px;"><?php echo esc_html( $t['vehicle_name'] ); ?></strong>
+                                            <span style="background: var(--etb-brand); color: var(--etb-on-brand); font-size: 11px; font-weight: 800; padding: 2px 7px; border-radius: 4px;">#<?php echo esc_html( $idx + 1 ); ?></span>
+                                            <strong style="color: var(--etb-text-primary); font-size: 13.5px;"><?php echo esc_html( $t['vehicle_name'] ); ?></strong>
                                         </div>
-                                        <span style="color: #fbac18; font-weight: 800; font-size: 13.5px;"><?php echo esc_html( $t_price_display ); ?></span>
+                                        <span style="color: var(--etb-accent-gold); font-weight: 800; font-size: 13.5px;"><?php echo esc_html( $t_price_display ); ?></span>
                                     </div>
                                     <div style="font-size: 12px; color: var(--etb-text-secondary); margin-bottom: 5px; display: flex; align-items: center; gap: 5px;">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--etb-accent-gold, #fbac18)" stroke-width="2" style="flex-shrink:0;"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
                                         <span style="font-weight: bold; color: var(--etb-text-primary);"><?php echo esc_html( $t_dt_display ); ?></span>
                                     </div>
-                                    <div style="font-size: 12px; color: #cbd5e1; line-height: 1.45;">
+                                    <div style="font-size: 12px; color: var(--etb-text-secondary); line-height: 1.45;">
                                         <?php if ( 'hourly' === $t['mode'] ) : ?>
                                             <div style="display: flex; align-items: center; gap: 6px;">
                                                 <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="var(--etb-accent-gold, #fbac18)" stroke-width="2" style="flex-shrink:0;"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
-                                                <strong style="color: color: var(--etb-text-secondary)">By the hour (<?php echo esc_html( $t['duration'] ); ?>h)</strong> — <?php echo esc_html( $t['pickup'] ); ?>
+                                                <strong style="color: var(--etb-text-secondary)"><?php echo esc_html( sprintf( ETB_I18n::t( 'By the hour (%sh)' ), $t['duration'] ) ); ?></strong> — <?php echo esc_html( $t['pickup'] ); ?>
                                             </div>
                                         <?php else : ?>
                                             <div style="display: flex; align-items: center; gap: 6px;">
-                                                <span style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #22c55e; flex-shrink: 0;"></span>
+                                                <span style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--etb-success); flex-shrink: 0;"></span>
                                                 <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--etb-text-secondary)"><?php echo esc_html( $t['pickup'] ); ?></span>
                                             </div>
                                             <div style="display: flex; align-items: center; gap: 6px; margin-top: 2px;">
@@ -686,20 +727,20 @@ if ( $has_airport_pickup && ! $has_city_pickup ) {
                                 <h4 id="etb-chk-summary-vehicle-name"><?php echo esc_html( $vehicle_name ); ?></h4>
                                 <div class="etb-chk-summary-specs" id="etb-chk-summary-specs">
                                     <span class="etb-summary-spec-item">
-                                        <svg viewBox="0 0 100 95" width="20" height="20" fill="#fbac18">
-                                            <path d="m88.484 31.117c0 8.0312-6.5117 14.539-14.539 14.539-8.0312 0-14.543-6.5078-14.543-14.539s6.5117-14.539 14.539 14.543c8.0273 0 14.539 6.5117 14.539 14.543z"/>
-                                            <path d="m0.90234 73.273c-3.0547 6.2812 2.0391 15.633 9.6914 17.562 16.133 3.6016 32.57 3.6016 48.703 0 7.6562-1.9336 12.75-11.281 9.6914-17.562-5.7109-11.867-18.844-22.293-34.047-22.391-15.203 0.10156-28.336 10.523-34.047 22.391z"/>
-                                            <path d="m54.445 25.965c0 10.77-8.7305 19.504-19.5 19.504-10.77 0-19.504-8.7344-19.504-19.504 0-10.77 8.7344-19.5 19.504-19.5 10.77-0.003906 19.5 8.7305 19.5 19.5z"/>
-                                            <path d="m99.328 66.391c-4.2578-8.8516-14.051-16.625-25.383-16.695-5.1719 0.03125-10.023 1.6719-14.176 4.2812 6.0273 4.4648 11.02 10.426 14.141 16.91 1.5391 3.1641 1.8438 6.8906 0.93359 10.605 5.7734-0.0625 11.539-0.73047 17.258-2.0078 5.707-1.4414 9.5078-8.4141 7.2266-13.094z"/>
+                                        <svg viewBox="0 0 100 95" width="20" height="20" fill="currentColor" style="color: var(--etb-accent-gold);">
+                                            <path d="m88.484 31.117c0 8.0312-6.5117 14.539-14.539 14.539-8.0312 0-14.543-6.5078-14.543-14.539s6.5117-14.539 14.543-14.543c8.0273 0 14.539 6.5117 14.539 14.543z"></path>
+                                            <path d="m0.90234 73.273c-3.0547 6.2812 2.0391 15.633 9.6914 17.562 16.133 3.6016 32.57 3.6016 48.703 0 7.6562-1.9336 12.75-11.281 9.6914-17.562-5.7109-11.867-18.844-22.293-34.047-22.391-15.203 0.10156-28.336 10.523-34.047 22.391z"></path>
+                                            <path d="m54.445 25.965c0 10.77-8.7305 19.504-19.5 19.504-10.77 0-19.504-8.7344-19.504-19.504 0-10.77 8.7344-19.5 19.504-19.5 10.77-0.003906 19.5 8.7305 19.5 19.5z"></path>
+                                            <path d="m99.328 66.391c-4.2578-8.8516-14.051-16.625-25.383-16.695-5.1719 0.03125-10.023 1.6719-14.176 4.2812 6.0273 4.4648 11.02 10.426 14.141 16.91 1.5391 3.1641 1.8438 6.8906 0.93359 10.605 5.7734-0.0625 11.539-0.73047 17.258-2.0078 5.707-1.4414 9.5078-8.4141 7.2266-13.094z"></path>
                                         </svg>
-                                        <span><strong id="etb-chk-pax-count"><?php echo esc_html( $pax_count ); ?></strong> <span class="etb-spec-long">Passengers</span><span class="etb-spec-short">Pax</span></span>
+                                        <span><strong id="etb-chk-pax-count"><?php echo esc_html( $pax_count ); ?></strong> <span class="etb-spec-long"><?php echo esc_html( ETB_I18n::t( 'Passengers' ) ); ?></span><span class="etb-spec-short"><?php echo esc_html( ETB_I18n::t( 'Pax' ) ); ?></span></span>
                                     </span>
                                     <span class="etb-spec-dot">•</span>
                                     <span class="etb-summary-spec-item">
-                                        <svg viewBox="20 8 60 88" width="20" height="20" fill="#fbac18">
+                                        <svg viewBox="20 8 60 88" width="20" height="20" fill="currentColor" style="color: var(--etb-accent-gold);">
                                             <path d="M70.75,26.75H60.028l1.056,5.476c2.108-0.315,4.109,1.073,4.517,3.185l0.868,4.5c0.418,2.169-1.001,4.267-3.171,4.685 l-1.227,0.237c-2.169,0.418-4.268-1.001-4.686-3.17l-0.867-4.5c-0.408-2.113,0.936-4.146,3.01-4.637l-1.113-5.775H54.75v-14 c0-0.019-0.01-0.034-0.011-0.052c0.002-0.032,0.01-0.062,0.01-0.095c0-0.773-0.626-1.397-1.397-1.397h-6.705 c-0.771,0-1.397,0.624-1.397,1.397c0,0.034,0.008,0.065,0.01,0.098c0,0.017-0.01,0.031-0.01,0.049v14h-16c-2.209,0-4,1.791-4,4v59 c0,2.209,1.791,4,4,4h6V94c0,0.69,0.559,1.25,1.25,1.25c0.689,0,1.25-0.56,1.25-1.25v-0.25h24.5V94c0,0.69,0.559,1.25,1.25,1.25 c0.689,0,1.25-0.56,1.25-1.25v-0.25h6c2.209,0,4-1.791,4-4v-59C74.75,28.541,72.959,26.75,70.75,26.75z M47.75,14h4.5v12.75h-4.5V14 z M63.39,84.078h-26.78c-1.027,0-1.86-0.834-1.86-1.859c0-1.028,0.833-1.859,1.86-1.859h26.78c1.026,0,1.859,0.831,1.859,1.859 C65.249,83.244,64.416,84.078,63.39,84.078z"/>
                                         </svg>
-                                       <span><strong id="etb-chk-bag-count"><?php echo esc_html( $bag_count ); ?></strong> <span class="etb-spec-long">Luggage</span><span class="etb-spec-short">Bag</span></span>
+                                       <span><strong id="etb-chk-bag-count"><?php echo esc_html( $bag_count ); ?></strong> <span class="etb-spec-long"><?php echo esc_html( ETB_I18n::t( 'Luggage' ) ); ?></span><span class="etb-spec-short"><?php echo esc_html( ETB_I18n::t( 'Bag' ) ); ?></span></span>
                                     </span>
                                 </div>
                             </div>
@@ -717,28 +758,28 @@ if ( $has_airport_pickup && ! $has_city_pickup ) {
                                     </svg>
                                 </span>
                                 <div class="etb-chk-timeline-text">
-                                    <small>DATE & TIME</small>
+                                    <small><?php echo esc_html( ETB_I18n::t( 'DATE & TIME' ) ); ?></small>
                                     <strong id="etb-chk-summary-datetime"><?php echo esc_html( $formatted_datetime_display ); ?></strong>
                                 </div>
                             </div>
                             <div class="etb-chk-timeline-item" id="etb-chk-timeline-pickup-row">
                                 <span class="etb-chk-bullet etb-bullet-pickup"></span>
                                 <div class="etb-chk-timeline-text">
-                                    <small>PICKUP</small>
+                                    <small><?php echo esc_html( ETB_I18n::t( 'PICKUP' ) ); ?></small>
                                     <strong id="etb-chk-summary-pickup"><?php echo esc_html( $pickup_addr ?: '—' ); ?></strong>
                                 </div>
                             </div>
                             <div class="etb-chk-timeline-item" id="etb-chk-timeline-dropoff-row">
                                 <span class="etb-chk-bullet etb-bullet-dropoff"></span>
                                 <div class="etb-chk-timeline-text">
-                                    <small>DROP-OFF</small>
+                                    <small><?php echo esc_html( ETB_I18n::t( 'DROP-OFF' ) ); ?></small>
                                     <strong id="etb-chk-summary-dropoff"><?php echo esc_html( $dropoff_addr ?: '—' ); ?></strong>
                                 </div>
                             </div>
                             <div class="etb-chk-timeline-item" id="etb-chk-timeline-duration-row" style="display: none;">
                                 <span class="etb-chk-bullet etb-bullet-hourly"></span>
                                 <div class="etb-chk-timeline-text">
-                                    <small>DURATION</small>
+                                    <small><?php echo esc_html( ETB_I18n::t( 'DURATION' ) ); ?></small>
                                     <strong id="etb-chk-summary-duration">—</strong>
                                 </div>
                             </div>
@@ -747,27 +788,29 @@ if ( $has_airport_pickup && ! $has_city_pickup ) {
 
                     <!-- Engagements de service Blacklane -->
                     <div class="etb-chk-guarantees">
+                        <?php if ( $free_cancel_hours > 0 ) : ?>
                         <div class="etb-chk-guarantee-line">
                             <span class="dashicons dashicons-yes"></span>
-                            <span>Free cancellation up to 2 hours before pickup</span>
+                            <span><?php echo esc_html( sprintf( ETB_I18n::t( 1 === $free_cancel_hours ? 'Free cancellation up to %s hour before pickup' : 'Free cancellation up to %s hours before pickup' ), $free_cancel_hours ) ); ?></span>
                         </div>
+                        <?php endif; ?>
                         <div class="etb-chk-guarantee-line">
                             <span class="dashicons dashicons-clock"></span>
                             <span id="etb-chk-wait-time-text"><?php echo esc_html( $dynamic_wait_time_text ); ?></span>
                         </div>
                         <div class="etb-chk-guarantee-line">
                             <span class="dashicons dashicons-shield"></span>
-                            <span>Taxes, tolls, fuel & insurance included</span>
+                            <span><?php echo esc_html( ETB_I18n::t( 'Taxes, tolls, fuel & insurance included' ) ); ?></span>
                         </div>
                     </div>
 
                     <!-- Sélecteur de Pourboire chauffeur -->
-                    <div class="etb-chk-tip-section">
-                        <label class="etb-chk-tip-title">Add Driver Tip (Optional)</label>
+                    <div class="etb-chk-tip-section" style="<?php echo $hide_tip_section ? 'display: none;' : ''; ?>">
+                        <label class="etb-chk-tip-title"><?php echo esc_html( ETB_I18n::t( 'Add Driver Tip (Optional)' ) ); ?></label>
                         <div class="etb-chk-tip-pills">
                             <label class="etb-tip-pill active" data-tip="0">
                                 <input type="radio" name="etb_driver_tip" value="0" checked>
-                                <span>None</span>
+                                <span><?php echo esc_html( ETB_I18n::t( 'None' ) ); ?></span>
                             </label>
                             <label class="etb-tip-pill" data-tip="10">
                                 <input type="radio" name="etb_driver_tip" value="10">
@@ -788,25 +831,25 @@ if ( $has_airport_pickup && ! $has_city_pickup ) {
                     <!-- Total Prix Net Garanti -->
                     <div class="etb-chk-price-breakdown">
                         <div class="etb-chk-price-row">
-                            <span>Base Fare</span>
+                            <span><?php echo esc_html( ETB_I18n::t( 'Base Fare' ) ); ?></span>
                             <span id="etb-chk-breakdown-base"><?php echo esc_html( $formatted_price ); ?></span>
                         </div>
                         <!-- Lignes dynamiques distinctes : Baby Seat et Booster Seat -->
-                        <div class="etb-chk-price-row" id="etb-chk-baby-seats-row" style="display: none; color: #fbac18;">
-                            <span id="etb-chk-baby-seats-label">Extra Baby Seat</span>
+                        <div class="etb-chk-price-row" id="etb-chk-baby-seats-row" style="display: none; color: var(--etb-accent-gold);">
+                            <span id="etb-chk-baby-seats-label"><?php echo esc_html( ETB_I18n::t( 'Extra Baby Seat' ) ); ?></span>
                             <span id="etb-chk-breakdown-baby-seats">+ 0 €</span>
                         </div>
-                        <div class="etb-chk-price-row" id="etb-chk-booster-seats-row" style="display: none; color: #fbac18;">
-                            <span id="etb-chk-booster-seats-label">Extra Booster Seat</span>
+                        <div class="etb-chk-price-row" id="etb-chk-booster-seats-row" style="display: none; color: var(--etb-accent-gold);">
+                            <span id="etb-chk-booster-seats-label"><?php echo esc_html( ETB_I18n::t( 'Extra Booster Seat' ) ); ?></span>
                             <span id="etb-chk-breakdown-booster-seats">+ 0 €</span>
                         </div>
 
-                        <div class="etb-chk-price-row" id="etb-chk-tip-row" style="display: none; color: #4ade80;">
-                            <span>Driver Tip (<strong id="etb-chk-tip-percent">10%</strong>)</span>
+                        <div class="etb-chk-price-row" id="etb-chk-tip-row" style="display: none; color: var(--etb-success);">
+                            <span><?php echo esc_html( ETB_I18n::t( 'Driver Tip' ) ); ?> (<strong id="etb-chk-tip-percent">10%</strong>)</span>
                             <span id="etb-chk-breakdown-tip">+ 0 €</span>
                         </div>
                         <div class="etb-chk-price-row total-row">
-                            <span>Total (All Inclusive)</span>
+                            <span><?php echo esc_html( ETB_I18n::t( 'Total (All Inclusive)' ) ); ?></span>
                             <strong id="etb-chk-total-price"><?php echo esc_html( $formatted_price ); ?></strong>
                         </div>
                     </div>
@@ -815,35 +858,40 @@ if ( $has_airport_pickup && ! $has_city_pickup ) {
                     <div class="etb-chk-feedback" id="etb-chk-feedback" style="display: none;"></div>
 
                     <!-- Bandeau de réservation urgente (< 24h) pilotable en PHP & JS -->
-                    <div id="etb-chk-urgent-notice-box" style="<?php echo $is_urgent_booking ? 'display: block;' : 'display: none;'; ?> background: rgb(161 9 0 / 44%); border: 1px solid  rgb(227 0 0 / 35%); border-radius: 10px; padding: 12px 14px; margin-bottom: 14px; font-size: 12px; color: var(--etb-text-primary, #ffffff); line-height: 1.45; text-align:center;">
-                        <strong style="color: #fbac18; display: block; margin-bottom: 2px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align: -2px; margin-right: 5px;"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>Short-Notice Pickup (&lt; 24h)</strong>
-                        For bookings scheduled within 24 hours, 
-                        our dispatch team will confirm chauffeur 
-                        availability before any payment is collected.
-                        You will receive a response within 
-                        1 hour during business hours (8:00 AM – 9:00 PM).
+                    <div id="etb-chk-urgent-notice-box" style="<?php echo $is_urgent_booking ? 'display: block;' : 'display: none;'; ?> background: var(--etb-danger-bg); border: 1px solid var(--etb-danger-border); border-radius: 10px; padding: 12px 14px; margin-bottom: 14px; font-size: 12px; font-weight: 500; color: var(--etb-text-primary); line-height: 1.45; text-align:center;">
+                        <strong style="color: var(--etb-danger); display: block; margin-bottom: 2px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align: -2px; margin-right: 5px;"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg><?php echo esc_html( ETB_I18n::t( 'Short-Notice Pickup (< 24h)' ) ); ?></strong>
+                        <?php echo esc_html( ETB_I18n::t( 'For bookings scheduled within 24 hours, our dispatch team will confirm chauffeur availability before any payment is collected. You will receive a response within 1 hour during business hours (8:00 AM – 9:00 PM).' ) ); ?>
+                    </div>
+                    <!-- Bandeau Upon Request (Disponibilité à confirmer) -->
+                    <div id="etb-chk-upon-request-notice" style="<?php echo $is_upon_request ? 'display: block;' : 'display: none;'; ?> background: var(--etb-brand-soft); border: 1px solid var(--etb-brand); border-radius: 10px; padding: 12px 14px; margin-bottom: 14px; font-size: 12px; font-weight: 500; color: var(--etb-text-primary); line-height: 1.45; text-align:center;">
+                        <strong style="color: var(--etb-brand-ink); display: block; margin-bottom: 2px;">⭐ <?php echo esc_html( ETB_I18n::t( 'Premium Vehicle Request' ) ); ?></strong>
+                        <?php echo esc_html( ETB_I18n::t( 'This exceptional vehicle requires manual confirmation from our dispatch team. You will receive a response within 1 hour during business hours (8:00 AM – 9:00 PM).' ) ); ?>
                     </div>
                     
                     <!-- Option "Pay Later" (masquée si devis ou réservation urgente) -->
                     <div id="etb-chk-pay-later-wrap" style="text-align: center; margin-bottom: 12px; <?php echo ( $is_urgent_booking || 'Custom Quote' === $price_val || floatval( $price_val ) <= 0 ) ? 'display: none;' : ''; ?>">
-                        <a href="#" id="etb-chk-pay-later-link" style="font-size: 13px; font-weight: 700; color: var(--etb-text-secondary, #94a3b8); text-decoration: underline; transition: color 0.2s ease;">
-                            Or book now and Pay Later ➔
+                        <a href="#" id="etb-chk-pay-later-link" style="display: none; font-size: 13px; font-weight: 700; color: var(--etb-text-secondary, #94a3b8); text-decoration: underline; transition: color 0.2s ease;">
+                            <?php echo esc_html( ETB_I18n::t( 'Or book now and Pay Later ➔' ) ); ?>
                         </a>
                     </div>
 
-                    <!-- Bouton d'action principal -->
+                        <!-- Bouton d'action principal -->
                     <button type="button" class="etb-chk-submit-btn" id="etb-chk-submit-btn">
-                        <span id="etb-chk-submit-text"><?php echo $is_urgent_booking ? 'Request Urgent Booking' : 'Continue to Payment'; ?></span>
+                        <span id="etb-chk-submit-text">
+                            <?php 
+                            if ($is_upon_request) {
+                                echo esc_html( ETB_I18n::t( 'Submit Premium Request' ) );
+                            } elseif ($is_urgent_booking) {
+                                echo esc_html( ETB_I18n::t( 'Request Urgent Booking' ) );
+                            } else {
+                                echo esc_html( ETB_I18n::t( 'Continue to Payment' ) );
+                            }
+                            ?>
+                        </span>
                         <span class="dashicons dashicons-arrow-right-alt2"></span>
                     </button>
 
-                    <p class="etb-chk-ssl-notice">
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: -2px; margin-right: 4px;">
-                            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-                            <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-                        </svg>
-                        256-Bit SSL Encrypted Dispatch to LimoExpress
-                    </p>
+                    
 
                 </div>
             </div> <!-- FIN .etb-checkout-right-col (COLONNE 2) -->

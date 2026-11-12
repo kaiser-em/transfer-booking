@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<phpunit
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:noNamespaceSchemaLocation="https://schema.phpunit.de/10.5/phpunit.xsd"
+    bootstrap="tests/bootstrap.php"
+    cacheDirectory=".phpunit.cache"
+    colors="true"
+    beStrictAboutTestsThatDoNotTestAnything="true"
+    beStrictAboutOutputDuringTests="true"
+    beStrictAboutChangesToGlobalState="true"
+    failOnWarning="false"
+    verbose="true"
+>
+    <testsuites>
+        <testsuite name="ETB Core Tests">
+            <directory suffix=".php">tests/includes</directory>
+        </testsuite>
+    </testsuites>
+
+    <source>
+        <include>
+            <directory suffix=".php">includes</directory>
+        </include>
+        <exclude>
+            <directory suffix=".php">includes/class-etb-limoexpress.php</directory>
+            <directory suffix=".php">includes/class-etb-stripe.php</directory>
+            <directory suffix=".php">includes/class-etb-dispatcher-manager.php</directory>
+        </exclude>
+    </source>
+
+    <coverage>
+        <report>
+            <clover outputFile="build/logs/clover.xml"/>
+        </report>
+    </coverage>
+
+    <php>
+        <ini name="memory_limit" value="256M" />
+        <ini name="display_errors" value="1" />
+        <ini name="error_reporting" value="-1" />
+        <env name="WP_TESTS_DIR" value="../../../../../tests/phpunit" />
+        <env name="WP_TESTS_MULTISITE" value="0" />
+    </php>
+</phpunit>

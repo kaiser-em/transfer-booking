@@ -1,0 +1,459 @@
+/* ==========================================================================
+   ETB THEME — COUCHE D'APPLICATION (chargée en DERNIER)
+   Fond GLASS auto-portant par widget, indépendant de la page hôte.
+   Consomme les tokens de etb-tokens.css ; ne redéfinit aucune couleur en dur.
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   1. FOND AUTO-PORTANT DES 3 WIDGETS (transfer / checkout / payment)
+   Le fond voyage avec le widget : la page hôte n'a plus d'impact visuel.
+   -------------------------------------------------------------------------- */
+#etb-quick-widget-app,
+#etb-checkout-app,
+#etb-payment-page-app {
+    position: relative !important;
+    isolation: isolate !important;
+    background: var(--etb-widget-bg) !important;
+    border: 1px solid var(--etb-widget-border) !important;
+    border-radius: var(--etb-radius-lg) !important;
+    -webkit-backdrop-filter: var(--etb-widget-blur) !important;
+    backdrop-filter: var(--etb-widget-blur) !important;
+    transition: background 0.4s ease, border-color 0.4s ease !important;
+}
+
+/* Checkout & Payment : le wrapper devient une coque glass avec respiration interne */
+#etb-checkout-app,
+#etb-payment-page-app {
+    padding: 30px !important;
+    margin: 35px auto !important;
+}
+
+/* Sur petits écrans, on réduit la marge interne pour garder du contenu utile */
+@media (max-width: 640px) {
+    #etb-checkout-app,
+    #etb-payment-page-app {
+        padding: 18px 14px !important;
+        border-radius: var(--etb-radius-md) !important;
+    }
+    .etb-quick-widget {
+        padding: 16px 12px !important;
+        margin: 18px auto !important;
+    }
+}
+
+/* --------------------------------------------------------------------------
+   2. VARIABLES LOCALES DU WIDGET MINIMAL → pilotées par le thème
+   (écrase les valeurs sombres figées de etb-tokens.css pour le mode clair)
+   -------------------------------------------------------------------------- */
+.etb-quick-widget {
+    --etb-qw-bg-bar: var(--etb-bg-glass);
+    --etb-qw-bg-capsule: var(--etb-bg-glass);
+    --etb-qw-bg-card: var(--etb-bg-card);
+    --etb-qw-bg-card-selected: var(--etb-bg-card-hover);
+    --etb-qw-bg-dropdown: var(--etb-bg-card);
+    --etb-qw-bg-hover: var(--etb-bg-elevated);
+    --etb-qw-border: var(--etb-border-main);
+    --etb-qw-border-subtle: var(--etb-border-light);
+    --etb-qw-border-input: var(--etb-border-input);
+    --etb-qw-text-white: var(--etb-text-primary);
+    --etb-qw-text-muted: var(--etb-text-secondary);
+    --etb-qw-text-dark: var(--etb-on-brand);
+}
+
+/* --------------------------------------------------------------------------
+   3. TITRE "FARE CALCULATOR" : police unifiée + shimmer adapté au thème
+   -------------------------------------------------------------------------- */
+#etb-quick-widget-app .etb-quick-title-thinking {
+    font-family: var(--etb-font-family) !important;
+}
+
+[data-etb-theme="dark"] #etb-quick-widget-app .etb-quick-title-thinking {
+    background-image: linear-gradient(90deg, #6b7280 0%, #f3f4f6 22%, #fbac18 32%, #fbac18 64%, #9ca3af 80%, #6b7280 100%) !important;
+}
+
+[data-etb-theme="light"] #etb-quick-widget-app .etb-quick-title-thinking {
+    background-image: linear-gradient(90deg, #94a3b8 0%, #334155 22%, #b45309 32%, #b45309 64%, #475569 80%, #94a3b8 100%) !important;
+}
+
+/* --------------------------------------------------------------------------
+   4. BANDEAUX & CARTES THÉMATISÉS (remplacent les styles inline — correctif #3)
+   -------------------------------------------------------------------------- */
+
+/* Bandeau réservation urgente (< 24h) */
+.etb-notice-urgent {
+    display: none;
+    width: 100%;
+    max-width: 620px;
+    margin: 18px auto;
+    padding: 13px 18px;
+    background: var(--etb-danger-bg);
+    border: 1px solid var(--etb-danger-border);
+    border-radius: var(--etb-radius-md);
+    color: var(--etb-text-primary);
+    font-size: 12.5px;
+    line-height: 1.5;
+    text-align: center;
+}
+.etb-notice-urgent strong {
+    display: block;
+    margin-bottom: 3px;
+    color: var(--etb-danger);
+    font-size: 13px;
+}
+.etb-notice-urgent svg {
+    vertical-align: -2px;
+    margin-right: 5px;
+}
+
+/* Bandeau véhicule Premium sur demande */
+.etb-notice-request {
+    display: none;
+    width: 100%;
+    max-width: 620px;
+    margin: 18px auto;
+    padding: 13px 18px;
+    background: var(--etb-brand-soft);
+    border: 1px solid var(--etb-brand-glow);
+    border-radius: var(--etb-radius-md);
+    color: var(--etb-text-primary);
+    font-size: 12.5px;
+    line-height: 1.5;
+    text-align: center;
+}
+.etb-notice-request strong {
+    display: block;
+    margin-bottom: 3px;
+    color: var(--etb-brand-ink);
+    font-size: 13px;
+}
+.etb-notice-request svg {
+    vertical-align: -2px;
+    margin-right: 5px;
+}
+
+/* Panier multi-trajets */
+.etb-trips-cart {
+    display: none;
+    margin: 20px 0 14px 0;
+    background: var(--etb-bg-card);
+    border: 1px solid var(--etb-brand);
+    border-radius: var(--etb-radius-md);
+    padding: 14px 18px;
+
+    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(12px);
+}
+.etb-trips-cart-head {
+    display: flex;
+    align-items: center;
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--etb-border-light);
+}
+.etb-trips-cart-head-inner {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.etb-trips-cart-head svg {
+    flex-shrink: 0;
+    stroke: var(--etb-brand-ink);
+}
+.etb-trips-cart-title {
+    color: var(--etb-brand-ink);
+    font-weight: 800;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    white-space: nowrap;
+}
+.etb-trips-cart-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+/* Ligne de trajet injectée par JS : neutralise le fond blanc inline figé */
+.etb-cart-trip-item {
+    background: var(--etb-bg-input) !important;
+    border-color: var(--etb-border-light) !important;
+    color: var(--etb-text-primary) !important;
+}
+
+/* En-tête de navigation du checkout (retour + toggle) */
+.etb-checkout-top-nav {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    gap: 12px;
+}
+
+/* --------------------------------------------------------------------------
+   5. ALERTES DE LA PAGE PAIEMENT (sécurité / déjà payé) thématisées
+   -------------------------------------------------------------------------- */
+.etb-pay-alert {
+    text-align: center;
+    padding: 45px 30px;
+    max-width: 600px;
+    margin: 0 auto;
+    background: var(--etb-bg-card);
+    border: 1px solid var(--etb-border-main);
+    border-radius: var(--etb-radius-lg);
+    box-shadow: var(--etb-shadow-base);
+}
+.etb-pay-alert-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    margin-bottom: 18px;
+    border: 2px solid currentColor;
+}
+.etb-pay-alert-icon .dashicons {
+    font-size: 32px;
+    width: 32px;
+    height: 32px;
+}
+.etb-pay-alert h2 {
+    font-size: 22px;
+    font-weight: 800;
+    margin: 0 0 8px 0;
+}
+.etb-pay-alert p {
+    font-size: 14px;
+    color: var(--etb-text-secondary);
+    margin-bottom: 20px;
+    line-height: 1.55;
+}
+.etb-pay-alert--danger {
+    border-color: var(--etb-danger-border);
+}
+.etb-pay-alert--danger .etb-pay-alert-icon {
+    color: var(--etb-danger);
+    background: var(--etb-danger-bg);
+}
+.etb-pay-alert--danger h2 {
+    color: var(--etb-danger);
+}
+.etb-pay-alert--success {
+    border-color: var(--etb-success);
+}
+.etb-pay-alert--success .etb-pay-alert-icon {
+    color: var(--etb-success);
+    background: var(--etb-success-bg);
+}
+.etb-pay-alert--success h2 {
+    color: var(--etb-success);
+}
+.etb-pay-alert--warning {
+    border-color: var(--etb-warning);
+}
+.etb-pay-alert--warning .etb-pay-alert-icon {
+    color: var(--etb-warning);
+    background: var(--etb-warning-bg);
+}
+.etb-pay-alert--warning h2 {
+    color: var(--etb-warning);
+}
+
+/* --------------------------------------------------------------------------
+   5bis. CARTES DE SUCCÈS (checkout & paiement) — thématisées, sans inline
+   -------------------------------------------------------------------------- */
+.etb-success-card {
+    text-align: center;
+    padding: 45px 35px;
+    border-color: var(--etb-success);
+    /*box-shadow: var(--etb-shadow-md);*/
+}
+.etb-success-card--wide {
+    max-width: 650px;
+    margin: 0 auto;
+    padding: 50px 35px;
+}
+.etb-success-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 68px;
+    height: 68px;
+    background: var(--etb-success-bg);
+    border: 2px solid var(--etb-success);
+    border-radius: 50%;
+    margin-bottom: 20px;
+    color: var(--etb-success);
+}
+.etb-success-title {
+    color: var(--etb-success);
+    font-size: 24px;
+    font-weight: 800;
+    margin: 0 0 12px 0;
+}
+.etb-success-subtitle {
+    font-size: 15px;
+    margin-bottom: 25px;
+    line-height: 1.55;
+    color: var(--etb-text-primary);
+}
+.etb-success-details {
+    background: var(--etb-bg-input);
+    border: 1px solid var(--etb-border-light);
+    border-radius: 12px;
+    padding: 18px 22px;
+    margin-bottom: 30px;
+    text-align: left;
+    font-size: 13.5px;
+    line-height: 1.6;
+    color: var(--etb-text-primary);
+}
+.etb-success-details p {
+    margin: 6px 0;
+}
+.etb-success-actions {
+    display: flex;
+    justify-content: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+.etb-success-btn {
+    text-decoration: none;
+    display: inline-flex;
+    width: auto;
+    padding: 14px 28px;
+}
+.etb-success-btn-secondary {
+    background: var(--etb-bg-elevated);
+    color: var(--etb-text-primary);
+    border: 1px solid var(--etb-border-light);
+}
+@media (max-width: 640px) {
+    .etb-success-card,
+    .etb-success-card--wide {
+        padding: 32px 20px;
+    }
+    .etb-success-title {
+        font-size: 20px;
+    }
+}
+
+/* --------------------------------------------------------------------------
+   5ter. ONGLETS THÉMATISÉS (checkout multi-trajets & modes de paiement)
+   -------------------------------------------------------------------------- */
+.etb-chk-leg-tab-btn {
+    padding: 7px 16px;
+    border-radius: 50px;
+    font-family: var(--etb-font-family);
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+    border: 1px solid var(--etb-border-light);
+    background: var(--etb-bg-input);
+    color: var(--etb-text-secondary);
+}
+.etb-chk-leg-tab-btn.active {
+    border: 1.5px solid var(--etb-brand);
+    background: var(--etb-brand-soft);
+    color: var(--etb-brand-ink);
+}
+.etb-pay-tab-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    padding: 12px 8px;
+    border-radius: 8px;
+    border: 1px solid var(--etb-border-light);
+    background: var(--etb-bg-input);
+    color: var(--etb-text-secondary);
+    font-family: var(--etb-font-family);
+    font-size: 18px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+.etb-pay-tab-btn.active {
+    border: 1.5px solid var(--etb-brand);
+    background: var(--etb-brand-soft);
+    color: var(--etb-brand-ink);
+}
+.etb-pay-tab-btn svg {
+    flex-shrink: 0;
+}
+
+/* --------------------------------------------------------------------------
+   6. SCROLLBARS THÉMATISÉES (menus heure, durée, suggestions)
+   -------------------------------------------------------------------------- */
+.etb-quick-widget .etb-time-scroll,
+.etb-quick-widget .etb-custom-select-options,
+.etb-quick-widget .etb-quick-suggestions-box,
+.etb-checkout-wrapper .etb-chk-scroll {
+    scrollbar-width: thin;
+    scrollbar-color: var(--etb-scroll-thumb) var(--etb-scroll-track);
+}
+.etb-quick-widget .etb-time-scroll::-webkit-scrollbar,
+.etb-quick-widget .etb-custom-select-options::-webkit-scrollbar,
+.etb-quick-widget .etb-quick-suggestions-box::-webkit-scrollbar,
+.etb-checkout-wrapper .etb-chk-scroll::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+.etb-quick-widget .etb-time-scroll::-webkit-scrollbar-track,
+.etb-quick-widget .etb-custom-select-options::-webkit-scrollbar-track,
+.etb-quick-widget .etb-quick-suggestions-box::-webkit-scrollbar-track,
+.etb-checkout-wrapper .etb-chk-scroll::-webkit-scrollbar-track {
+    background: var(--etb-scroll-track);
+    border-radius: 8px;
+}
+.etb-quick-widget .etb-time-scroll::-webkit-scrollbar-thumb,
+.etb-quick-widget .etb-custom-select-options::-webkit-scrollbar-thumb,
+.etb-quick-widget .etb-quick-suggestions-box::-webkit-scrollbar-thumb,
+.etb-checkout-wrapper .etb-chk-scroll::-webkit-scrollbar-thumb {
+    background: var(--etb-scroll-thumb);
+    border-radius: 8px;
+}
+.etb-quick-widget .etb-time-scroll::-webkit-scrollbar-thumb:hover,
+.etb-quick-widget .etb-custom-select-options::-webkit-scrollbar-thumb:hover,
+.etb-quick-widget .etb-quick-suggestions-box::-webkit-scrollbar-thumb:hover,
+.etb-checkout-wrapper .etb-chk-scroll::-webkit-scrollbar-thumb:hover {
+    background: var(--etb-scroll-thumb-hover);
+}
+
+/* --------------------------------------------------------------------------
+   7. ACCESSIBILITÉ : focus clavier visible + mouvement réduit
+   -------------------------------------------------------------------------- */
+.etb-quick-widget :focus-visible,
+.etb-checkout-wrapper :focus-visible {
+    outline: 2px solid var(--etb-brand) !important;
+    outline-offset: 2px !important;
+    border-radius: 4px;
+}
+
+/* Options de sélection navigables au clavier (heure / durée) */
+.etb-time-opt[tabindex],
+.etb-custom-option[tabindex] {
+    cursor: pointer;
+}
+.etb-time-opt:focus-visible,
+.etb-custom-option:focus-visible {
+    outline: 2px solid var(--etb-brand) !important;
+    outline-offset: -2px !important;
+    background: var(--etb-bg-elevated) !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    #etb-quick-widget-app .etb-quick-title-thinking {
+        animation: none !important;
+        background-position: 0% center !important;
+    }
+    #etb-quick-widget-app,
+    #etb-checkout-app,
+    #etb-payment-page-app,
+    .etb-quick-widget * {
+        transition-duration: 0.01ms !important;
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+    }
+}

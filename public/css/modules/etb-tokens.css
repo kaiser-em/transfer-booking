@@ -14,17 +14,27 @@
 .etb-booking-widget {
     /* Couleurs Principales */
 
+    --etb-brand: #fbac18;
+    --etb-brand-hover: #e39402;
+    --etb-on-brand: #201503;
+    --etb-brand-glow: rgba(251, 172, 24, 0.28);
+    --etb-brand-soft: rgba(251, 172, 24, 0.12);
+    --etb-widget-bg: #18181B;
+    --etb-widget-border: rgba(255, 255, 255, 0.09);
+    --etb-widget-highlight: rgba(255, 255, 255, 0.05);
+    --etb-widget-shadow: 0 24px 70px rgba(0, 0, 0, 0.5), 0 2px 10px rgba(0, 0, 0, 0.35);
+    --etb-widget-blur: blur(18px) saturate(140%);
     --etb-primary: #2e3447;              /* Vert foncé noble / Titres principaux */
     --etb-primary-dark: #282d3b;         /* Noir ardoise / Titres des cartes */
-    --etb-accent: #E65A15;               /* Orange vif / Boutons, prix, sélections */
-    --etb-accent-hover: #D1541F;         /* Orange foncé au survol */
-    --etb-accent-glow: rgba(230, 90, 21, 0.18); /* Halo lumineux de sélection */
-    --etb-accent-light: rgba(230, 90, 21, 0.04);
+    --etb-accent: var(--etb-accent-gold);               /* Orange vif / Boutons, prix, sélections */
+    --etb-accent-hover: var(--etb-accent-gold-hover);         /* Orange foncé au survol */
+    --etb-accent-glow: var(--etb-brand-glow); /* Halo lumineux de sélection */
+    --etb-accent-light: var(--etb-brand-soft);
 
 
-    --etb-qw-accent: #f7a100;                      /* Bleu royal éclatant Eden Cab */
-    --etb-qw-accent-hover: #eb8c17;                /* Bleu foncé au clic */
-    --etb-qw-accent-glow: rgba(0, 114, 229, 0.4);  /* Halo lumineux */
+    --etb-qw-accent: var(--etb-brand);                      /* Bleu royal éclatant Eden Cab */
+    --etb-qw-accent-hover: var(--etb-brand-hover);                /* Bleu foncé au clic */
+    --etb-qw-accent-glow: var(--etb-brand-glow);  /* Halo lumineux */
     
     /* Couleurs Neutres & Surfaces */
     --etb-bg-light: #F8F9FA;             /* Fond doux pour badges et conteneurs */
@@ -81,12 +91,13 @@
     --etb-qw-text-dark: #0f172a;                   /* Textes sur fond clair */
 
     position: relative !important;
-    z-index: 9999 !important; /* Priorité absolue sur tous les blocs suivants de la page */
+    z-index: 1 !important;
+    isolation: isolate !important;
     width: 100% !important;
     max-width: 1150px !important;
     margin: 35px auto !important;
-    padding: 16px !important;
-    border: 1px solid var(--etb-border-main, #232a3b) !important;
+    padding: 22px !important;
+    border: 1px solid var(--etb-widget-border) !important;
     border-radius: 20px !important;
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
     box-sizing: border-box !important;
@@ -105,21 +116,35 @@
 /* ── THÈME SOMBRE VIP (PAR DÉFAUT) ── */
 [data-etb-theme="dark"] {
     --etb-bg-app: transparent;
-    --etb-bg-card: #000000/*#0f1420*/;
-    --etb-bg-card-hover: #000000 /*#141b2b*/;
-    --etb-bg-input: #000000 /*#151b29*/;
-    --etb-bg-glass: #000000 /*rgba(11, 15, 25, 0.88)*/;
+    --etb-bg-card: #000000;
+    --etb-bg-card-hover: #141b2b;
+    --etb-bg-input: #000000;
+    --etb-bg-glass: #000000;
+    --etb-bg-elevated: #1a2336;
     
-    --etb-border-main: #232a3b;
-    --etb-border-input: #28334b;
+    --etb-border-main: #262626;
+    --etb-border-input: #3F3F46;
     --etb-border-light: rgba(255, 255, 255, 0.15);
     
     --etb-text-primary: #ffffff;
-    --etb-text-secondary: #94a3b8;
+    --etb-text-secondary: #cdcdcd;
     --etb-text-muted: #64748b;
     
     --etb-accent-gold: #fbac18;
     --etb-accent-gold-hover: #e39402;
+    --etb-brand-ink: #fbac18;
+    --etb-success: #4ade80;
+    --etb-success-bg: rgba(74, 222, 128, 0.12);
+    --etb-warning: #fbbf24;
+    --etb-warning-bg: rgba(251, 191, 36, 0.12);
+    --etb-danger: #f87171;
+    --etb-danger-bg: rgba(248, 113, 113, 0.12);
+    --etb-danger-border: rgba(248, 113, 113, 0.4);
+    --etb-info: #60a5fa;
+    --etb-info-bg: rgba(96, 165, 250, 0.12);
+    --etb-scroll-track: rgba(255, 255, 255, 0.04);
+    --etb-scroll-thumb: #2c3650;
+    --etb-scroll-thumb-hover: #fbac18;
     
     --etb-shadow-base: 0 10px 30px rgba(0, 0, 0, 0.4);
 }
@@ -129,8 +154,9 @@
     --etb-bg-app: transparent;
     --etb-bg-card: #ffffff;
     --etb-bg-card-hover: #f8fafc;
-    --etb-bg-input: #f1f5f9;
-    --etb-bg-glass: rgba(255, 255, 255, 1);
+    --etb-bg-input: #f1f5f96e;
+    --etb-bg-glass: rgba(255, 255, 255, 0.86);
+    --etb-bg-elevated: #f1f5f9;
     
     --etb-border-main: #e2e8f0;
     --etb-border-input: #cbd5e1;
@@ -140,8 +166,26 @@
     --etb-text-secondary: #475569;
     --etb-text-muted: #94a3b8;
     
-    --etb-accent-gold: #e65a15; /* Orange légèrement plus soutenu pour contraste sur fond blanc */
-    --etb-accent-gold-hover: #c2410c;
+    --etb-accent-gold: #fbac18; /* Ambre foncé : même famille or, contraste AA sur blanc */
+    --etb-accent-gold-hover: #92400e;
+    --etb-brand-ink: #b45309;
+    --etb-brand-soft: rgba(251, 172, 24, 0.08); /* Teinte or allégée : texte actif ambre ≥ AA sur fond clair */
+    --etb-success: #15803d;
+    --etb-success-bg: rgba(21, 128, 61, 0.1);
+    --etb-warning: #b45309;
+    --etb-warning-bg: rgba(180, 83, 9, 0.1);
+    --etb-danger: #b91c1c;
+    --etb-danger-bg: rgba(185, 28, 28, 0.08);
+    --etb-danger-border: rgba(185, 28, 28, 0.3);
+    --etb-info: #1d4ed8;
+    --etb-info-bg: rgba(29, 78, 216, 0.08);
+    --etb-widget-bg:#f1f5f9;
+    --etb-widget-border: rgba(15, 23, 42, 0.08);
+    --etb-widget-highlight: rgba(255, 255, 255, 0.75);
+    --etb-widget-shadow: 0 24px 60px rgba(15, 23, 42, 0.14), 0 2px 10px rgba(15, 23, 42, 0.06);
+    --etb-scroll-track: rgba(15, 23, 42, 0.04);
+    --etb-scroll-thumb: #cbd5e1;
+    --etb-scroll-thumb-hover: #fbac18;
     
     --etb-shadow-base: 0 10px 30px rgba(0, 0, 0, 0.06);
 }
@@ -149,8 +193,10 @@
 /* Application des tokens sur les éléments racines */
 #etb-quick-widget-app,
 #etb-checkout-app,
+#etb-payment-page-app,
 .etb-checkout-wrapper {
     color: var(--etb-text-primary) !important;
+    font-family: var(--etb-font-family) !important;
 }
 
 /* Remplacement massif des couleurs en dur par les variables sur le widget d'accueil */
@@ -183,8 +229,15 @@
 .etb-quick-submit-btn,
 .etb-quick-book-trip-btn,
 .etb-chk-submit-btn {
-    background: var(--etb-accent-gold) !important;
-    color: #ffffff !important;
+    background: var(--etb-brand, #fbac18) !important;
+    color: var(--etb-on-brand, #201503) !important;
+}
+
+.etb-quick-submit-btn:hover,
+.etb-quick-book-trip-btn:hover,
+.etb-chk-submit-btn:hover {
+    background: var(--etb-brand-hover, #e39402) !important;
+    color: var(--etb-on-brand, #201503) !important;
 }
 
 
