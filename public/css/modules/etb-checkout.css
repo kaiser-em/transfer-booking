@@ -2107,10 +2107,15 @@
         overflow-wrap: break-word !important;
         white-space: normal !important;
         width: 100% !important;
+        font-size: 12px !important;
+        padding: 8px 14px !important;
+        gap: 6px !important;
     }
     .etb-chk-radio-pill span:last-child {
         overflow-wrap: break-word !important;
-        word-break: break-word !important;
+        word-break: break-all !important;
+        display: block !important;
+        max-width: 100% !important;
     }
 
     /* Input téléphone : réduire l'espace réservé au drapeau sur très petit écran */
