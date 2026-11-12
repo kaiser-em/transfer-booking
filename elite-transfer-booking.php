@@ -3,7 +3,7 @@
  * Plugin Name: Elite Transfer Booking
  * Plugin URI: 
  * Description: Transferts privés : widget de réservation, checkout et paiement (Stripe / dispatch).
- * Version:     1.1.0
+ * Version:     1.1.2
  * Author:      Reich C
  * Text Domain: elite-transfer-booking
  */
@@ -18,7 +18,7 @@ if ( defined( 'ETB_VERSION' ) ) {
     } );
 } else {
 
-define( 'ETB_VERSION', '1.1.0' );
+define( 'ETB_VERSION', '1.1.2' );
 define( 'ETB_PATH', plugin_dir_path( __FILE__ ) );
 define( 'ETB_URL', plugin_dir_url( __FILE__ ) );
 

@@ -5,6 +5,19 @@
 (function () {
     'use strict';
 
+    // Bouclier défensif : ignore l'erreur "Cannot set properties of null (setting 'href')"
+    // levée par un script tiers (thème / autre plugin) au window.onload sur la page de paiement / checkout.
+    // Cette erreur n'est pas émise par ce fichier ; le bouclier l'empêche de bloquer le reste du JS.
+    // On cible toute variante : "Cannot set properties of null", "null", + "setting 'href'".
+    window.onerror = function (msg, url, line, col, error) {
+        if (typeof msg === 'string' &&
+            msg.includes("setting 'href'") &&
+            (msg.includes("null") || msg.includes("Cannot set properties"))) {
+            return true;
+        }
+        return false;
+    };
+
     // Neutralise toute valeur interpolée dans du HTML (adresses, noms, données sessionStorage…)
     const escapeHtml = function (value) {
         return String(value == null ? '' : value).replace(/[&<>"']/g, function (ch) {
@@ -4821,9 +4834,17 @@
         }
     };
 
+    const safeStartApp = function () {
+        try {
+            startApp();
+        } catch (err) {
+            console.error('ETB: Erreur lors de l initialisation du widget:', err);
+        }
+    };
+
     if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', startApp);
+        document.addEventListener('DOMContentLoaded', safeStartApp);
     } else {
-        startApp();
+        safeStartApp();
     }
 })();
