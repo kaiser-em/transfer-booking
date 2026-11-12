@@ -65,11 +65,13 @@
 
 .etb-checkout-left-col {
     width: 100% !important;
+    min-width: 0 !important; /* Permet le rétrécissement en dessous du contenu sur mobile */
 }
 
 /* Colonne récapitulative : Glissement soyeux GPU bi-directionnel */
 .etb-checkout-right-col {
     width: 100% !important;
+    min-width: 0 !important; /* Permet le rétrécissement en dessous du contenu sur mobile */
     position: sticky !important;
     top: 35px !important;
     align-self: start !important;
@@ -2085,6 +2087,14 @@
    ========================================================================== */
 @media (max-width: 480px) {
 
+    /* Empêche le débordement global du conteneur checkout sur mobile */
+    .etb-checkout-wrapper {
+        overflow-x: hidden !important;
+    }
+    .etb-checkout-layout {
+        min-width: 0 !important;
+    }
+
     /* Titre de page : taille réduite + retour à la ligne forcé */
     .etb-checkout-page-title {
         font-size: 20px !important;
@@ -2121,7 +2131,7 @@
     /* Input téléphone : réduire l'espace réservé au drapeau sur très petit écran */
     .etb-chk-field .iti input#etb-passenger-phone,
     .etb-chk-field .iti input.etb-phone-field {
-        padding-left: 70px !important;
+        padding-left: 60px !important;
     }
 
     /* Tous les textes du wrapper : retour à la ligne forcé pour éviter tout débordement */
@@ -2144,8 +2154,9 @@
         padding: 6px 0 !important;
     }
 
-    /* Sélecteur capacité (Pax / Bag / Cabin) : réduire l'écart */
+    /* Sélecteur capacité (Pax / Bag / Cabin) : 1 colonne sur très petit écran */
     .etb-chk-capacity-box {
+        grid-template-columns: 1fr !important;
         gap: 8px !important;
         padding: 10px 14px !important;
     }
@@ -2159,6 +2170,12 @@
     }
     .etb-chk-submit-btn .dashicons {
         display: none !important;
+    }
+
+    /* Cartes : ne pas dépasser la largeur du conteneur sur mobile */
+    .etb-checkout-card {
+        max-width: 100% !important;
+        overflow-x: hidden !important;
     }
 
     /* Liste déroulante pays : ne pas dépasser l'écran */
