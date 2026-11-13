@@ -742,8 +742,8 @@
 }
 
 .etb-chk-price-row.total-row strong {
-    font-size: 24px !important;
-    font-weight: 900 !important;
+    font-size: 18px !important;
+    font-weight: 600 !important;
     color: #fbac18 !important;
     letter-spacing: -0.5px !important;
 }
@@ -2097,9 +2097,9 @@
     align-items: stretch !important;
 }
 .etb-chk-seats-wrapper > * {
-    flex: 1 1 calc(50% - 6px) !important;
-    max-width: calc(50% - 6px) !important;
-    min-width: 0 !important;
+    flex: 1 !important;
+    /*max-width: calc(50% - 6px) !important;*/
+    min-width: 270px !important;
 }
 .etb-chk-capacity-3col > * {
     flex: 1 1 calc(33.333% - 8px) !important;
