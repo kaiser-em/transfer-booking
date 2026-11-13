@@ -2,29 +2,21 @@
 /**
  * ETB i18n — localisation légère du frontend.
  *
- * Règle : si la langue du site (get_locale) commence par « fr », on traduit
- * vers le français ; sinon tout reste en anglais. La clé de traduction est le
- * texte anglais source lui-même : t('Show Prices') → « Voir les tarifs » (FR)
- * ou « Show Prices » (EN). Toute clé absente du dictionnaire retombe gracieusement
- * sur l'anglais : aucun risque de chaîne vide.
+ * Langue statique : anglais uniquement, en toutes circonstances. Aucune
+ * détection de domaine ni de locale n'est effectuée. Le français est totalement
+ * désactivé.
  */
 
 if ( ! defined( 'ABSPATH' ) ) exit;
 
 class ETB_I18n {
 
-    private static $lang = null;
-
     public static function lang() {
-        if ( null === self::$lang ) {
-            $locale     = function_exists( 'get_locale' ) ? get_locale() : 'en_US';
-            self::$lang = ( 0 === stripos( (string) $locale, 'fr' ) ) ? 'fr' : 'en';
-        }
-        return self::$lang;
+        return 'en';
     }
 
     public static function is_fr() {
-        return 'fr' === self::lang();
+        return false;
     }
 
     /**
