@@ -150,7 +150,7 @@ if ( ! empty( $cancel_vehicle_ids ) ) {
 <div class="etb-checkout-wrapper" id="etb-checkout-app">
     
     <!-- En-tête de retour & Switcher Thème -->
-    <div class="etb-checkout-top-nav" style="display: flex; justify-content: space-between; align-items: flex-end;">
+    <div class="etb-checkout-top-nav" style="display: flex; justify-content: space-between; align-items: flex-start;">
         <div>
             <a href="javascript:history.back();" class="etb-checkout-back-link">
                 <span class="dashicons dashicons-arrow-left-alt2"></span>

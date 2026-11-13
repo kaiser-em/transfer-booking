@@ -1743,14 +1743,6 @@
                 emailInquiryBtn.href = `mailto:${adminMail}?subject=${emailSubject}&body=${emailBody}`;
             }
 
-            // 3. Masquer le duo contact (Email / WhatsApp) pour les Custom Quote
-            // On ne doit pas afficher ces canaux de contact quand le tarif est un devis sur mesure
-            const contactDuo = quickRoot.querySelector('.etb-quick-contact-duo');
-            const isCustomQuoteRide = selectedCar && (selectedCar.isQuote === '1' || selectedCar.isQuote === true);
-            const isCustomQuoteCart = Array.isArray(cartTrips) && cartTrips.some(t => t.isQuote === '1' || t.isQuote === true);
-            if (contactDuo) {
-                contactDuo.style.display = (isCustomQuoteRide || isCustomQuoteCart) ? 'none' : 'flex';
-            }
         };
 
         // 4. Sélection d'une voiture : Illumination, mise à jour des détails et affichage du bouton doré
@@ -1880,9 +1872,9 @@
 
                         <div class="etb-bar-col2" style="display: flex; flex-direction: column; justify-content: center;">
                             <div class="etb-bar-price">${priceHtml}</div>
-                            <div class="etb-bar-sub" style="color: var(--etb-text-secondary, #94a3b8); font-size: 11px; text-transform: uppercase;">
+                            ${!isCarQuote ? `<div class="etb-bar-sub" style="color: var(--etb-text-secondary, #94a3b8); font-size: 11px; text-transform: uppercase;">
                                 ${currentMode === 'hourly' ? etbT('Hourly Charter') : etbT('All Inclusive (Fixed rate)')}
-                            </div>
+                            </div>` : ''}
                         </div>
                     `;
                 }
@@ -2210,9 +2202,9 @@
                                 ? '<span style="color: var(--etb-accent-gold, #fbac18); font-size: 22px; font-weight: 800;">' + etbT('Custom Quote') + '</span>' 
                                 : `<span style="color: var(--etb-accent-gold, #fbac18); font-size: 28px; font-weight: 900; letter-spacing: -0.5px;">${cumulativeTotal.toFixed(0)} <span style="font-size: 18px;">${currency}</span></span>`}
                         </div>
-                        <div class="etb-bar-sub" style="color: var(--etb-text-secondary, #94a3b8); font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em;">
+                        ${!hasCustomQuoteInCart ? `<div class="etb-bar-sub" style="color: var(--etb-text-secondary, #94a3b8); font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em;">
                             ${etbT('Fixed All-Inclusive Rate')}
-                        </div>
+                        </div>` : ''}
                     </div>
                 `;
             } else if (dynamicContentEl && selectedCar) {
