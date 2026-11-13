@@ -2085,6 +2085,38 @@
 /* ==========================================================================
    RESPONSIVE : PETITS ÉCRANS (< 480px) - Anti-débordement
    ========================================================================== */
+/* ── GRID INTELLIGENT : FLEXBOX AVEC WRAP POUR LES CARTES ──
+   Permet aux cartes (Baby Seat, Booster Seat, Pax, Bag, Cabin) de passer
+   à la ligne automatiquement quand le conteneur est trop étroit,
+   au lieu de déborder en forçant un nombre fixe de colonnes. */
+.etb-chk-seats-wrapper,
+.etb-chk-capacity-3col {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    gap: 12px !important;
+    align-items: stretch !important;
+}
+.etb-chk-seats-wrapper > * {
+    flex: 1 1 calc(50% - 6px) !important;
+    max-width: calc(50% - 6px) !important;
+    min-width: 0 !important;
+}
+.etb-chk-capacity-3col > * {
+    flex: 1 1 calc(33.333% - 8px) !important;
+    max-width: calc(33.333% - 8px) !important;
+    min-width: 0 !important;
+}
+
+@media (max-width: 920px){
+    .etb-chk-capacity-box {
+        grid-template-columns: 1fr !important;
+        gap: 8px !important;
+        padding: 10px 14px !important;
+    }
+    
+}
+
+
 @media (max-width: 480px) {
 
     /* Empêche le débordement global du conteneur checkout sur mobile */
@@ -2185,3 +2217,5 @@
         right: auto !important;
     }
 }
+
+
