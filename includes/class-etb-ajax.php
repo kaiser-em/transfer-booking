@@ -624,6 +624,16 @@ class ETB_Ajax {
         update_post_meta( $booking_id, '_etb_is_quote', $is_quote_ride ? '1' : '0' );
         update_post_meta( $booking_id, '_etb_is_urgent', $is_urgent ? '1' : '0' );
 
+        // Délai d'annulation gratuite appliqué (selon le mode et le véhicule)
+        $free_cancel_meta_key = ( 'hourly' === $mode ) ? '_etb_free_cancel_hours_hourly' : '_etb_free_cancel_hours_transfer';
+        $applied_cancel_hours = get_post_meta( $vehicle_id, $free_cancel_meta_key, true );
+        if ( '' === $applied_cancel_hours ) {
+            $applied_cancel_hours = get_post_meta( $vehicle_id, '_etb_free_cancel_hours', true );
+        }
+        $applied_cancel_hours = ( '' === $applied_cancel_hours ) ? 2 : max( 0, absint( $applied_cancel_hours ) );
+        update_post_meta( $booking_id, '_etb_free_cancel_hours_applied', $applied_cancel_hours );
+        update_post_meta( $booking_id, '_etb_service_type', $mode );
+
         // Mention du pourboire dans la note chauffeur LimoExpress
         $tip_driver_note = '';
         if ( $tip_amount > 0 ) {

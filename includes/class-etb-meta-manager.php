@@ -38,8 +38,10 @@ class ETB_Meta_Manager {
         $km_included   = get_post_meta( $post->ID, '_etb_km_included_ph', true ) ?: '35';
         $km_sup_rate   = get_post_meta( $post->ID, '_etb_km_sup_rate', true );
 
-        $free_cancel_hours = get_post_meta( $post->ID, '_etb_free_cancel_hours', true );
-        if ( '' === $free_cancel_hours ) { $free_cancel_hours = 2; }
+        $free_cancel_hours_transfer = get_post_meta( $post->ID, '_etb_free_cancel_hours_transfer', true );
+        if ( '' === $free_cancel_hours_transfer ) { $free_cancel_hours_transfer = 2; }
+        $free_cancel_hours_hourly = get_post_meta( $post->ID, '_etb_free_cancel_hours_hourly', true );
+        if ( '' === $free_cancel_hours_hourly ) { $free_cancel_hours_hourly = 2; }
 
         $limo_class_id = get_post_meta( $post->ID, '_etb_limo_class_id', true );
         $extras = get_posts( array( 'post_type' => 'tour_extra', 'numberposts' => -1, 'post_status' => 'publish' ) );
@@ -110,9 +112,14 @@ class ETB_Meta_Manager {
                 <input type="number" min="0" name="etb_max_bag" value="<?php echo esc_attr( $max_bag ); ?>" class="widefat">
             </p>
         <p style="background: #f0fdf4; border-left: 3px solid #16a34a; padding: 10px 12px; border-radius: 4px;">
-            <label><strong>Délai d'annulation gratuite (heures avant le départ) :</strong></label><br>
-            <input type="number" min="0" name="etb_free_cancel_hours" value="<?php echo esc_attr( $free_cancel_hours ); ?>" class="widefat" placeholder="Ex: 2">
-            <span class="description">Affiché dans le checkout selon le véhicule choisi (ex: « Annulation gratuite jusqu'à 2 heures avant le départ »). Mettre 0 pour masquer cette garantie (aucune annulation gratuite).</span>
+            <label><strong>Délai annulation gratuite — Transfert (heures avant le départ) :</strong></label><br>
+            <input type="number" min="0" name="etb_free_cancel_hours_transfer" value="<?php echo esc_attr( $free_cancel_hours_transfer ); ?>" class="widefat" placeholder="Ex: 2">
+            <span class="description">Délai d'annulation gratuite pour ce véhicule en mode Transfert (point A → B). Mettre 0 pour masquer cette garantie.</span>
+        </p>
+        <p style="background: #f0fdf4; border-left: 3px solid #16a34a; padding: 10px 12px; border-radius: 4px; margin-top: 10px;">
+            <label><strong>Délai annulation gratuite — À l'heure (heures avant le départ) :</strong></label><br>
+            <input type="number" min="0" name="etb_free_cancel_hours_hourly" value="<?php echo esc_attr( $free_cancel_hours_hourly ); ?>" class="widefat" placeholder="Ex: 24">
+            <span class="description">Délai d'annulation gratuite pour ce véhicule en mode À l'heure (mise à disposition). Mettre 0 pour masquer cette garantie.</span>
         </p>
             <p>
             <label><strong>🎬 GIF / Image animée au survol (Optionnel) :</strong></label><br>
@@ -684,7 +691,8 @@ class ETB_Meta_Manager {
 
                 update_post_meta( $post_id, '_etb_max_pax', absint( $_POST['etb_max_pax'] ?? 0 ) );
                 update_post_meta( $post_id, '_etb_max_baggage', absint( $_POST['etb_max_bag'] ?? 0 ) );
-                update_post_meta( $post_id, '_etb_free_cancel_hours', isset( $_POST['etb_free_cancel_hours'] ) ? max( 0, absint( $_POST['etb_free_cancel_hours'] ) ) : 2 );
+                update_post_meta( $post_id, '_etb_free_cancel_hours_transfer', isset( $_POST['etb_free_cancel_hours_transfer'] ) ? max( 0, absint( $_POST['etb_free_cancel_hours_transfer'] ) ) : 2 );
+                update_post_meta( $post_id, '_etb_free_cancel_hours_hourly', isset( $_POST['etb_free_cancel_hours_hourly'] ) ? max( 0, absint( $_POST['etb_free_cancel_hours_hourly'] ) ) : 2 );
                 update_post_meta( $post_id, '_etb_hover_image', esc_url_raw( $_POST['etb_hover_image'] ?? '' ) );
                 update_post_meta( $post_id, '_etb_vehicle_featured', isset( $_POST['etb_vehicle_featured'] ) ? '1' : '0' );
 

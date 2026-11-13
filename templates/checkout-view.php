@@ -121,26 +121,38 @@ if ( $has_airport_pickup && ! $has_city_pickup ) {
     $dynamic_wait_time_text = ETB_I18n::t( '15 min complimentary wait time included' );
 }
 
-// 5. DÉLAI D'ANNULATION GRATUITE SELON LE(S) VÉHICULE(S) CHOISI(S)
+// 5. DÉLAI D'ANNULATION GRATUITE SELON LE(S) VÉHICULE(S) ET LE MODE (Transfert / À l'heure)
 // Multi-trajets : on retient le délai le plus restrictif (minimum) du panier.
+// Chaque véhicule est évalué selon son propre mode (transfer / hourly).
 $free_cancel_hours  = 2;
 $cancel_vehicle_ids = array();
+$trip_modes         = array(); // vehicle_id => mode
+
 if ( $is_multi_trip && ! empty( $trips_list ) ) {
     foreach ( $trips_list as $t ) {
         $vid = absint( $t['vehicle_id'] ?? 0 );
+        $md  = isset( $t['mode'] ) ? sanitize_text_field( $t['mode'] ) : $trip_mode;
         if ( $vid ) {
             $cancel_vehicle_ids[] = $vid;
+            $trip_modes[$vid]     = $md;
         }
     }
 }
 if ( empty( $cancel_vehicle_ids ) && $vehicle_id ) {
     $cancel_vehicle_ids[] = absint( $vehicle_id );
+    $trip_modes[absint( $vehicle_id )] = $trip_mode;
 }
 $cancel_vehicle_ids = array_unique( $cancel_vehicle_ids );
 if ( ! empty( $cancel_vehicle_ids ) ) {
     $cancel_vals = array();
     foreach ( $cancel_vehicle_ids as $vid ) {
-        $m             = get_post_meta( $vid, '_etb_free_cancel_hours', true );
+        $trip_md  = isset( $trip_modes[$vid] ) ? $trip_modes[$vid] : $trip_mode;
+        $meta_key = ( 'hourly' === $trip_md ) ? '_etb_free_cancel_hours_hourly' : '_etb_free_cancel_hours_transfer';
+        $m        = get_post_meta( $vid, $meta_key, true );
+        // Fallback sur l'ancienne clé pour la rétrocompatibilité
+        if ( '' === $m ) {
+            $m = get_post_meta( $vid, '_etb_free_cancel_hours', true );
+        }
         $cancel_vals[] = ( '' === $m ) ? 2 : max( 0, absint( $m ) );
     }
     $free_cancel_hours = min( $cancel_vals );

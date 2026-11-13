@@ -165,6 +165,8 @@ class ETB_I18n {
             'DURATION'                        => 'DURÉE',
             'Free cancellation up to %s hours before pickup' => 'Annulation gratuite jusqu\'à %s heures avant le départ',
             'Free cancellation up to %s hour before pickup' => 'Annulation gratuite jusqu\'à %s heure avant le départ',
+            'Transfer'                                       => 'Transfert',
+            'Hourly'                                         => 'À l\'heure',
             'Taxes, tolls, fuel & insurance included' => 'Taxes, péages, carburant & assurance inclus',
             'Add Driver Tip (Optional)'       => 'Ajouter un pourboire au chauffeur (facultatif)',
             'None'                            => 'Aucun',
