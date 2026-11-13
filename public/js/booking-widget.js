@@ -1742,6 +1742,15 @@
                 const emailBody    = encodeURIComponent(emailMessage.replace(/\*/g, ''));
                 emailInquiryBtn.href = `mailto:${adminMail}?subject=${emailSubject}&body=${emailBody}`;
             }
+
+            // 3. Masquer le duo contact (Email / WhatsApp) pour les Custom Quote
+            // On ne doit pas afficher ces canaux de contact quand le tarif est un devis sur mesure
+            const contactDuo = quickRoot.querySelector('.etb-quick-contact-duo');
+            const isCustomQuoteRide = selectedCar && (selectedCar.isQuote === '1' || selectedCar.isQuote === true);
+            const isCustomQuoteCart = Array.isArray(cartTrips) && cartTrips.some(t => t.isQuote === '1' || t.isQuote === true);
+            if (contactDuo) {
+                contactDuo.style.display = (isCustomQuoteRide || isCustomQuoteCart) ? 'none' : 'flex';
+            }
         };
 
         // 4. Sélection d'une voiture : Illumination, mise à jour des détails et affichage du bouton doré

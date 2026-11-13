@@ -2003,6 +2003,15 @@
 .etb-bar-price {
     line-height: 1.1 !important;
     margin-bottom: 4px !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+}
+
+.etb-bar-col2 {
+    min-width: 0 !important; /* Permet le rétrécissement sur mobile sans débordement */
 }
 
 .etb-bar-sub {
