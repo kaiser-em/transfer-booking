@@ -56,6 +56,16 @@
 }
 
 /* 2. Layout 2 Colonnes (Split Formulaire / Sticky Summary) */
+
+/* ⚙️ Réparation de position:sticky — le thème (Touriza) déclare html,body{overflow-x:hidden} :
+   cette combinaison transforme body en scroll container qui ne scrolle jamais (le défilement
+   se fait sur le viewport) → la colonne récap sticky ne "colle" plus.
+   overflow-x:clip conserve le clipping horizontal SANS créer de scroll container.
+   (Navigateurs modernes ; les anciens ignorent la règle et retombent sur hidden.) */
+html, body {
+    overflow-x: clip !important;
+}
+
 .etb-checkout-layout {
     display: grid !important;
     grid-template-columns: 1.4fr 1fr !important;

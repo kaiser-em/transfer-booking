@@ -408,6 +408,7 @@ class ETB_Ajax {
         $phone           = sanitize_text_field( $_POST['etb_phone'] ?? '' );
         $booker_name        = sanitize_text_field( $_POST['etb_booker_name'] ?? '' );
         $booker_email       = sanitize_email( $_POST['etb_booker_email'] ?? '' );
+        $booker_phone       = sanitize_text_field( $_POST['etb_booker_phone'] ?? '' );
         // Plafonds officiels : Max 2 sièges bébé et Max 3 rehausseurs
         $baby_seat_count    = min( 2, absint( $_POST['etb_baby_seat_count'] ?? 0 ) );
         $booster_seat_count = min( 3, absint( $_POST['etb_booster_seat_count'] ?? 0 ) );
@@ -647,6 +648,7 @@ class ETB_Ajax {
         update_post_meta( $booking_id, '_etb_booker_type', $booker_type );
         update_post_meta( $booking_id, '_etb_booker_name', $booker_name );
         update_post_meta( $booking_id, '_etb_booker_email', $booker_email );
+        update_post_meta( $booking_id, '_etb_booker_phone', $booker_phone );
         update_post_meta( $booking_id, '_etb_baby_seat_count', $baby_seat_count );
         update_post_meta( $booking_id, '_etb_booster_seat_count', $booster_seat_count );
         update_post_meta( $booking_id, '_etb_total_child_seats', $total_child_seats );
@@ -1041,6 +1043,10 @@ class ETB_Ajax {
         $phone_digits = ! empty( $phone ) ? preg_replace( '/[^0-9+]/', '', $phone ) : '';
         $whatsapp_link = ! empty( $phone_digits ) ? 'https://wa.me/' . ltrim( $phone_digits, '+' ) : '#';
 
+        // Lien WhatsApp direct vers le réservataire (champ Booker Phone du checkout)
+        $booker_phone_digits = ! empty( $booker_phone ) ? preg_replace( '/[^0-9+]/', '', $booker_phone ) : '';
+        $booker_whatsapp_link = ! empty( $booker_phone_digits ) ? 'https://wa.me/' . ltrim( $booker_phone_digits, '+' ) : '#';
+
         // En-têtes officiels stricts pour tous les envois (Client et Admin)
         $headers_client = ETB_Settings::get_mail_headers( $admin_email, $company_name );
         $headers_admin  = ETB_Settings::get_mail_headers( $email, $full_name );
@@ -1171,6 +1177,7 @@ class ETB_Ajax {
                 . '<div style="padding: 28px;">'
                 . '<p style="margin: 2px 0;"><strong>Passenger:</strong> ' . esc_html( $full_name ) . ' (<a href="tel:' . esc_attr( $phone ) . '">' . esc_html( $phone ) . '</a> | ' . esc_html( $email ) . ')</p>'
 . '<p style="margin: 2px 0;"><a href="' . esc_url( $whatsapp_link ) . '" style="background: #25d366; color: #ffffff; padding: 8px 16px; border-radius: 50px; text-decoration: none; font-weight: 800; font-size: 13px; display: inline-block;">💬 WhatsApp ' . esc_html( $phone ) . '</a></p>'
+                . '<p style="margin: 2px 0;"><a href="' . esc_url( $booker_whatsapp_link ) . '" style="background: #25d366; color: #ffffff; padding: 8px 16px; border-radius: 50px; text-decoration: none; font-weight: 800; font-size: 13px; display: inline-block;">💬 WhatsApp Booker ' . esc_html( $booker_phone ) . '</a></p>'
                 . '<div style="margin: 18px 0;">' . $itinerary_table_html . '</div>'
                 . '<div style="background: #fffbeb; border: 1px solid #fef3c7; border-radius: 8px; padding: 16px; margin-bottom: 22px;">'
                 . '<strong style="font-size: 13px; color: #92400e; display: block; margin-bottom: 6px;">👉 Dispatch Procedure:</strong>'
@@ -1221,6 +1228,7 @@ class ETB_Ajax {
                 . '<div style="padding: 28px;">'
                 . '<p style="margin: 2px 0;"><strong>Passenger:</strong> ' . esc_html( $full_name ) . ' (<a href="tel:' . esc_attr( $phone ) . '">' . esc_html( $phone ) . '</a> | ' . esc_html( $email ) . ')</p>'
 . '<p style="margin: 2px 0;"><a href="' . esc_url( $whatsapp_link ) . '" style="background: #25d366; color: #ffffff; padding: 8px 16px; border-radius: 50px; text-decoration: none; font-weight: 800; font-size: 13px; display: inline-block;">💬 WhatsApp ' . esc_html( $phone ) . '</a></p>'
+                . '<p style="margin: 2px 0;"><a href="' . esc_url( $booker_whatsapp_link ) . '" style="background: #25d366; color: #ffffff; padding: 8px 16px; border-radius: 50px; text-decoration: none; font-weight: 800; font-size: 13px; display: inline-block;">💬 WhatsApp Booker ' . esc_html( $booker_phone ) . '</a></p>'
                 . '<div style="margin: 18px 0;">' . $itinerary_table_html . '</div>'
                 . '<div style="background: #fffbeb; border: 1px solid #fef3c7; border-radius: 8px; padding: 14px; margin-bottom: 20px; font-size: 12.5px; color: #78350f;">'
                 . '<strong>👉 Action:</strong> Price the route(s) in LimoExpress and send the payment link to the client.'
@@ -1321,6 +1329,7 @@ class ETB_Ajax {
                     . '<div style="padding: 28px;">'
                     . '<p style="margin: 4px 0;"><strong>Passenger:</strong> ' . esc_html( $full_name ) . ' (<a href="tel:' . esc_attr( $phone ) . '">' . esc_html( $phone ) . '</a> | ' . esc_html( $email ) . ')</p>'
                     . '<p style="margin: 4px 0;"><a href="' . esc_url( $whatsapp_link ) . '" style="background: #25d366; color: #ffffff; padding: 8px 16px; border-radius: 50px; text-decoration: none; font-weight: 800; font-size: 13px; display: inline-block;">💬 WhatsApp ' . esc_html( $phone ) . '</a></p>'
+                    . '<p style="margin: 4px 0;"><a href="' . esc_url( $booker_whatsapp_link ) . '" style="background: #25d366; color: #ffffff; padding: 8px 16px; border-radius: 50px; text-decoration: none; font-weight: 800; font-size: 13px; display: inline-block;">💬 WhatsApp Booker ' . esc_html( $booker_phone ) . '</a></p>'
                     . '<p style="margin: 4px 0;"><strong>Vehicle:</strong> ' . esc_html( $vehicle_title ) . '</p>'
                     . '<p style="margin: 4px 0;"><strong>Route:</strong> ' . esc_html( $pickup ) . ' ➔ ' . esc_html( $dropoff_label ) . '</p>'
                     . '<p style="margin: 4px 0;"><strong>Date & Time:</strong> ' . esc_html( $formatted_dt ) . ' at ' . esc_html( $time ) . '</p>'

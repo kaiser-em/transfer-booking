@@ -3863,6 +3863,14 @@
                 }
             }
 
+            // Injection du téléphone réservataire (Booker Phone) en E.164 pour l'admin
+            if (bookerPhoneIti) {
+                const bookerFullPhone = bookerPhoneIti.getNumber();
+                if (bookerFullPhone) {
+                    formData.set('etb_booker_phone', bookerFullPhone);
+                }
+            }
+
             formData.append('action', 'etb_submit_checkout');
             formData.append('nonce', etbAjax.nonce);
             if (isPayLater) {
