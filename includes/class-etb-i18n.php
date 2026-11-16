@@ -94,7 +94,7 @@ class ETB_I18n {
             'Complimentary sweets & refreshments'       => 'Confiseries et rafraîchissements offerts',
             'Complimentary on-board WiFi'               => 'WiFi à bord offert',
             'For bookings scheduled within 24 hours, our dispatch team will confirm chauffeur availability before any payment is collected. You will receive a response within 1 hour during business hours (8:00 AM – 9:00 PM).' => 'Pour les réservations prévues dans moins de 24 heures, notre équipe de régulation confirme la disponibilité du chauffeur avant tout paiement. Vous recevrez une réponse sous 1 heure pendant les heures ouvrées (8h00 – 21h00).',
-            'This exceptional vehicle requires manual confirmation from our dispatch team. You will receive a response within 1 hour during business hours (8:00 AM – 9:00 PM).' => 'Ce véhicule d\'exception nécessite une confirmation manuelle par notre équipe de régulation. Vous recevrez une réponse sous 1 heure pendant les heures ouvrées (8h00 – 21h00).',
+            'Manual confirmation required. Response within one business hour, 8 AM-9 PM.' => 'Confirmation manuelle requise. Réponse sous 1 heure ouvrée, 8h-21h.',
 
             // ── Checkout ──
             'Edit Ride Details'               => 'Modifier les détails du trajet',
@@ -123,6 +123,7 @@ class ETB_I18n {
             'Booker Full Name'                => 'Nom complet du réservataire',
             'Assistant / Company Name'        => 'Nom de l\'assistant / société',
             'Booker Email (for invoice copy)' => 'E-mail du réservataire (copie facture)',
+            'Booker Phone (for contact)'      => 'Téléphone du réservataire (contact)',
             'Configure Each Transfer'         => 'Configurez chaque transfert',
             'Select a trip below to adjust passengers & luggage for that specific vehicle.' => 'Sélectionnez un trajet ci-dessous pour ajuster passagers et bagages de ce véhicule.',
             'Trip #'                          => 'Trajet n°',
@@ -192,6 +193,7 @@ class ETB_I18n {
             'Pay Now'                         => 'Payer maintenant',
             'Booking Summary'                 => 'Récapitulatif de réservation',
             'Return to Home'                  => 'Retour à l\'accueil',
+            'Return Booking'                  => 'Retour à la réservation',
             'Security Verification Failed'    => 'Échec de la vérification de sécurité',
             'Already Paid'                    => 'Déjà payé',
             'Card'                            => 'Carte',
@@ -357,6 +359,7 @@ class ETB_I18n {
             'This specific route requires a personalized quotation from our dispatch team. Please select your preferred vehicle below to submit a quote request.' => 'Cet itinéraire spécifique nécessite un devis personnalisé de notre équipe de régulation. Veuillez sélectionner votre véhicule préféré ci-dessous pour envoyer une demande de devis.',
             'Time' => 'Heure',
             'Total Amount' => 'Montant total',
+            'Trip Price'   => 'Prix du trajet',
             'Total to authorize' => 'Total à autoriser',
             'Transfer #%s' => 'Transfert n°%s',
             'Trip Summary (%d Transfers)' => 'Récapitulatif des trajets (%d transferts)',

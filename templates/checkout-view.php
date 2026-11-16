@@ -259,7 +259,7 @@ if ( ! empty( $cancel_vehicle_ids ) ) {
                                 </svg>
                             </span>
                             <div>
-                                <h3><?php echo esc_html( ETB_I18n::t( 'Passenger Information' ) ); ?></h3>
+                                <h4 style="color: var(--etb-accent-gold); font-size: 13px; text-transform: lowercase; margin: 0 0 10px 0;"><?php echo esc_html( ETB_I18n::t( 'Passenger Information' ) ); ?></h4>
                                 <p><?php echo esc_html( ETB_I18n::t( 'Select whether you are riding yourself or booking on behalf of someone else.' ) ); ?></p>
                             </div>
                         </div>
@@ -322,7 +322,7 @@ if ( ! empty( $cancel_vehicle_ids ) ) {
 
                         <!-- Champs additionnels Booker / Assistant -->
                         <div id="etb-guest-booker-fields" style="display: none; border-top: 1px dashed var(--etb-border-light); padding-top: 16px; margin-top: 10px;">
-                            <h4 style="color: var(--etb-accent-gold); font-size: 13px; text-transform: uppercase; margin: 0 0 10px 0;"><?php echo esc_html( ETB_I18n::t( 'Booker / Assistant Information' ) ); ?></h4>
+                            <h4 style="color: var(--etb-accent-gold); font-size: 13px; text-transform: lowercase; margin: 0 0 10px 0;"><?php echo esc_html( ETB_I18n::t( 'Booker / Assistant Information' ) ); ?></h4>
                             <div class="etb-chk-grid-2">
                                 <div class="etb-chk-field">
                                     <label for="etb-booker-name"><?php echo esc_html( ETB_I18n::t( 'Booker Full Name' ) ); ?></label>
@@ -331,6 +331,10 @@ if ( ! empty( $cancel_vehicle_ids ) ) {
                                 <div class="etb-chk-field">
                                     <label for="etb-booker-email"><?php echo esc_html( ETB_I18n::t( 'Booker Email (for invoice copy)' ) ); ?></label>
                                     <input type="email" name="etb_booker_email" id="etb-booker-email" placeholder="assistant@corp.com">
+                                </div>
+                                <div class="etb-chk-field">
+                                    <label for="etb-booker-phone"><?php echo esc_html( ETB_I18n::t( 'Booker Phone (for contact)' ) ); ?></label>
+                                    <input type="tel" name="etb_booker_phone" id="etb-booker-phone" class="etb-phone-field" placeholder="6 12 34 56 78">
                                 </div>
                             </div>
                         </div>
@@ -877,7 +881,7 @@ if ( ! empty( $cancel_vehicle_ids ) ) {
                     <!-- Bandeau Upon Request (Disponibilité à confirmer) -->
                     <div id="etb-chk-upon-request-notice" style="<?php echo $is_upon_request ? 'display: block;' : 'display: none;'; ?> background: var(--etb-brand-soft); border: 1px solid var(--etb-brand); border-radius: 10px; padding: 12px 14px; margin-bottom: 14px; font-size: 12px; font-weight: 500; color: var(--etb-text-primary); line-height: 1.45; text-align:center;">
                         <strong style="color: var(--etb-brand-ink); display: block; margin-bottom: 2px;">⭐ <?php echo esc_html( ETB_I18n::t( 'Premium Vehicle Request' ) ); ?></strong>
-                        <?php echo esc_html( ETB_I18n::t( 'This exceptional vehicle requires manual confirmation from our dispatch team. You will receive a response within 1 hour during business hours (8:00 AM – 9:00 PM).' ) ); ?>
+                        <?php echo esc_html( ETB_I18n::t( 'Manual confirmation required. Response within one business hour, 8 AM-9 PM.' ) ); ?>
                     </div>
                     
                     <!-- Option "Pay Later" (masquée si devis ou réservation urgente) -->

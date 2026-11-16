@@ -308,6 +308,12 @@ $formatted_amount = number_format_i18n( $settled_amount, 2 ) . ' ' . $currency_s
                         <div id="etb-pay-display-total" style="font-size: 38px; font-weight: 900; color: var(--etb-accent-gold, #fbac18); letter-spacing: -1px; margin-top: 2px;">
                             <?php echo esc_html( $formatted_amount ); ?>
                         </div>
+
+                        <!-- Base Fare affichée en tant que "Trip Price" juste sous le montant total -->
+                        <div style="display: flex; justify-content: space-between; align-items: baseline; margin-top: 8px;">
+                            <span style="font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--etb-text-secondary, #94a3b8);"><?php echo esc_html( ETB_I18n::t( 'Trip Price' ) ); ?></span>
+                            <span id="etb-pay-display-base-fare" style="font-size: 16px; font-weight: 800; color: #dc2626;"><?php echo esc_html( number_format_i18n( $saved_base_price, 2 ) . ' ' . $currency_symbol ); ?></span>
+                        </div>
                         
                         <!-- Détails des suppléments inclus sous le total -->
                         <div class="etb-pay-breakdown-details" style="font-size: 12.5px; margin-top: 6px; display: flex; flex-direction: column; gap: 3px;">
@@ -503,21 +509,13 @@ $formatted_amount = number_format_i18n( $settled_amount, 2 ) . ' ' . $currency_s
                         <span><?php echo esc_html( ETB_I18n::t( 'Booking Reference:' ) ); ?> <strong style="color: var(--etb-text-primary, #ffffff); font-size: 13.5px; letter-spacing: 0.02em;">#<?php echo esc_html( $clean_display_ref ); ?></strong></span>
                     </div>
 
-                    <!-- Note informative : Paiements futurs (Point 1) -->
-                    <div style="margin-top: 20px; padding: 14px 16px; background: var(--etb-bg-input, rgba(255,255,255,0.03)); border: 1px solid var(--etb-border-light, rgba(255,255,255,0.08)); border-radius: 10px;">
-                        <strong style="display: block; font-size: 13px; color: var(--etb-text-primary, #0f172a); margin-bottom: 4px;"><?php echo esc_html( ETB_I18n::t( 'Setup payments for future usage' ) ); ?></strong>
-                        <p style="font-size: 11.5px; color: var(--etb-text-secondary, #64748b); line-height: 1.5; margin: 0;">
-                            <?php echo esc_html( ETB_I18n::t( 'Allows' ) ); ?> <?php echo esc_html( $legal_name ); ?> <?php echo esc_html( ETB_I18n::t( 'to collect payments without your presence. Useful if you\'re a regular customer.' ) ); ?>
-                        </p>
-                    </div>
-
                 </div>
             </div>
             
             <!-- ══════════════════════════════════════════════════════════════ -->
             <!-- COLONNE 2 (DROITE) : FORMULAIRE DE PAIEMENT STRIPE              -->
             <!-- ══════════════════════════════════════════════════════════════ -->
-            <div class="etb-checkout-right-col" style="position: static !important; width: 100% !important;">
+            <div class="etb-checkout-right-col" style="width: 100% !important;">
                 <div class="etb-checkout-card">
                     
                     <h3 class="etb-payment-section-title" style="margin-bottom: 20px;"><?php echo esc_html( ETB_I18n::t( 'Payment Details' ) ); ?></h3>
@@ -889,10 +887,10 @@ $formatted_amount = number_format_i18n( $settled_amount, 2 ) . ' ' . $currency_s
 
                         </div>
 
-                        <!-- Mandat légal en anglais avec nom légal dynamique (Point 3) -->
+                        <!-- Mentions légales : autorisation de prélèvement (Point 3) -->
                         <div class="etb-payment-disclaimer-text" style="margin-top: 14px; margin-bottom: 22px;">
                             <p style="font-size: 11.5px; color: var(--etb-text-secondary, #64748b); line-height: 1.5; margin: 0;">
-                                <?php echo esc_html( ETB_I18n::t( 'By providing your payment card information, you authorize' ) ); ?> <strong><?php echo esc_html( $legal_name ); ?></strong> <?php echo esc_html( ETB_I18n::t( 'to charge your card for future payments in accordance with its' ) ); ?> <?php if ( ! empty( $terms_url ) ) : ?><a href="<?php echo esc_url( $terms_url ); ?>" target="_blank" rel="noopener noreferrer" class="etb-terms-link"><?php echo esc_html( ETB_I18n::t( 'terms and conditions' ) ); ?></a><?php else : ?><?php echo esc_html( ETB_I18n::t( 'terms and conditions' ) ); ?><?php endif; ?>.
+                                By paying, you authorize &quot;EDEN CAB&quot; Ltd. to collect any potential additional charges in accordance with its <?php if ( ! empty( $terms_url ) ) : ?><a href="<?php echo esc_url( $terms_url ); ?>" target="_blank" rel="noopener noreferrer" class="etb-terms-link">terms and conditions</a><?php else : ?>terms and conditions<?php endif; ?>.
                             </p>
                         </div>
 

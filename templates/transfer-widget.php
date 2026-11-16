@@ -230,6 +230,7 @@ $now_time = '';
                 $img_url       = get_the_post_thumbnail_url( $v->ID, 'full' ) ?: ( defined('ETB_URL') ? ETB_URL . 'public/images/default-car.png' : '' );
                 $hover_img     = get_post_meta( $v->ID, '_etb_hover_image', true );
                 $transfer_quote_only = get_post_meta( $v->ID, '_etb_transfer_quote_only', true );
+                $upon_request        = get_post_meta( $v->ID, '_etb_upon_request', true );
             ?>
                 <div class="etb-quick-car-item" 
                      id="limo-car-<?php echo esc_attr( $limo_class_id ); ?>" 
@@ -245,7 +246,8 @@ $now_time = '';
                      data-max-pax="<?php echo esc_attr( $max_pax ); ?>" 
                      data-max-bag="<?php echo esc_attr( $max_bag ); ?>"
                      data-hourly-quote-only="<?php echo esc_attr( $hourly_quote_only ? '1' : '0' ); ?>"
-                     data-transfer-quote-only="<?php echo esc_attr( $transfer_quote_only ? '1' : '0' ); ?>">
+                     data-transfer-quote-only="<?php echo esc_attr( $transfer_quote_only ? '1' : '0' ); ?>"
+                     data-upon-request="<?php echo esc_attr( $upon_request ? '1' : '0' ); ?>">
 
                     
                     <!-- 1. ZONE EN-TÊTE : Photo & GIF bord-à-bord + Badges flottants 👑 -->
@@ -404,7 +406,7 @@ $now_time = '';
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
                     <?php echo esc_html( ETB_I18n::t( 'Premium Vehicle Request' ) ); ?>
                 </strong>
-                <?php echo esc_html( ETB_I18n::t( 'This exceptional vehicle requires manual confirmation from our dispatch team. You will receive a response within 1 hour during business hours (8:00 AM – 9:00 PM).' ) ); ?>
+                <?php echo esc_html( ETB_I18n::t( 'Manual confirmation required. Response within one business hour, 8 AM-9 PM.' ) ); ?>
             </div>
         </div>
 

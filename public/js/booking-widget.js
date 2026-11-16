@@ -1087,7 +1087,8 @@
                 const kmSupRate   = parseFloat(card.getAttribute('data-km-sup-rate')) || 0;
                 
                 // Détection du mode "Upon Request"
-                const isQuoteOnly = card.getAttribute('data-hourly-quote-only') === '1';
+                const isQuoteOnly          = card.getAttribute('data-hourly-quote-only') === '1';
+                const isForcedUponRequest  = card.getAttribute('data-upon-request') === '1';
 
                 // On affiche TOUJOURS le véhicule
                 card.style.display = 'flex';
@@ -1172,8 +1173,6 @@
                     if (priceBox) {
                         priceBox.classList.add('is-upon-request');
                         priceBox.innerHTML = '<span class="etb-quick-amount">' + calculatedPrice + '</span> <span class="etb-quick-currency">' + currency + '</span> <span class="etb-quick-all-inclusive">' + etbT('All inclusive') + '</span>';
-                        
-
                     }
 
                     if (detailEl) {
@@ -1188,6 +1187,9 @@
                     if (selBtn) selBtn.textContent = etbT('Select');
                     if (allIncl) allIncl.style.display = 'flex';
                 }
+
+                // Applique le flag upon request (forçage admin ou quote-only)
+                card.dataset.isUponRequest = (isQuoteOnly || isForcedUponRequest) ? '1' : '0';
 
                 availableCarsCount++;
             });
@@ -2623,6 +2625,7 @@
         const pickupSignInput = checkoutRoot.querySelector('#etb-pickup-sign');
         const airportCard     = checkoutRoot.querySelector('#etb-chk-airport-card');
         const phoneInputEl    = checkoutRoot.querySelector('#etb-passenger-phone');
+        const bookerPhoneInputEl = checkoutRoot.querySelector('#etb-booker-phone');
 
         // Bascule Myself vs Guest
         const toggleMyself    = checkoutRoot.querySelector('#etb-toggle-myself');
@@ -2668,6 +2671,7 @@
 
         // Initialisation de la librairie internationale de téléphone (245 pays)
         let phoneIti = null;
+        let bookerPhoneIti = null;
         if (typeof window.intlTelInput !== 'undefined' && phoneInputEl) {
             phoneIti = window.intlTelInput(phoneInputEl, {
                 initialCountry: "auto",
@@ -2684,6 +2688,29 @@
                         .catch(function () { callback("fr"); });
                 }
             });
+        }
+
+        // Le champ "Téléphone du réservataire" possède sa propre instance intl-tel-input,
+        // totalement indépendante de celle du champ passager ci-dessus.
+        if (typeof window.intlTelInput !== 'undefined' && bookerPhoneInputEl) {
+            bookerPhoneIti = window.intlTelInput(bookerPhoneInputEl, {
+                initialCountry: "auto",
+                preferredCountries: ["fr", "mc", "gb", "us", "ch", "ae", "de", "it"],
+                // Exclut Guernesey, Jersey et l'Île de Man pour que +44 reste TOUJOURS sur le Royaume-Uni (GB)
+                excludeCountries: ["gg", "je", "im"],
+                separateDialCode: true,
+                autoPlaceholder: "aggressive",
+                utilsScript: "https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/18.2.1/js/utils.js",
+                geoIpLookup: function (callback) {
+                    fetch("https://ipapi.co/json/")
+                        .then(function (res) { return res.json(); })
+                        .then(function (data) { callback(data && data.country_code ? data.country_code.toLowerCase() : "fr"); })
+                        .catch(function () { callback("fr"); });
+                }
+            });
+        }
+
+        if (typeof window.intlTelInput !== 'undefined' && phoneInputEl) {
             // Formateur universel certifié par Google libphonenumber (couvre les 245 pays)
             const formatPhoneDigitsByCountry = function (digits, iso2) {
                 if (!digits) return '';
@@ -4644,7 +4671,10 @@
                                 + '<p>' + etbT('An official paid confirmation receipt has been sent to %s.').replace('%s', () => '<strong>' + (escapeHtml(emailVal) || etbT('your email')) + '</strong>') + '</p>'
                                 + '<p>' + etbT('Your chauffeur will send an SMS update prior to pickup.') + '</p>'
                                 + '</div>'
-                                + '<a href="' + encodeURI(etbAjax.home_url || '/') + '" class="etb-chk-submit-btn etb-success-btn">' + etbT('Return to Home') + '</a>'
+                                + '<div class="etb-success-actions">'
++ '<a href="' + encodeURI(etbAjax.home_url || '/') + '" class="etb-chk-submit-btn etb-success-btn">' + etbT('Return to Home') + '</a>'
++ '<a href="' + encodeURI(etbAjax.checkout_url || '/') + '" class="etb-chk-submit-btn etb-success-btn etb-success-btn-secondary">' + etbT('Return Booking') + '</a>'
++ '</div>'
                                 + '</div>';
                             payRoot.scrollIntoView({ behavior: 'smooth', block: 'start' });
                         }
@@ -4791,7 +4821,10 @@
                                 + '<p>' + etbT('An official paid confirmation receipt has been sent to %s.').replace('%s', () => '<strong>' + escapeHtml(emailVal) + '</strong>') + '</p>'
                                 + '<p>' + etbT('Your chauffeur has received the mission in dispatch.') + '</p>'
                                 + '</div>'
-                                + '<a href="' + encodeURI(etbAjax.home_url || '/') + '" class="etb-chk-submit-btn etb-success-btn">' + etbT('Return to Home') + '</a>'
+                                + '<div class="etb-success-actions">'
++ '<a href="' + encodeURI(etbAjax.home_url || '/') + '" class="etb-chk-submit-btn etb-success-btn">' + etbT('Return to Home') + '</a>'
++ '<a href="' + encodeURI(etbAjax.checkout_url || '/') + '" class="etb-chk-submit-btn etb-success-btn etb-success-btn-secondary">' + etbT('Return Booking') + '</a>'
++ '</div>'
                                 + '</div>';
                             payRoot.scrollIntoView({ behavior: 'smooth', block: 'start' });
                         }

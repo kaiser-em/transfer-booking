@@ -87,6 +87,14 @@ class ETB_Meta_Manager {
                     </label>
                     <span class="description" style="display: block; margin-top: 4px; font-size: 11px; margin-left: 24px;">Masque les prix calculés Point A ➔ Point B et demande un devis manuel.</span>
                 </p>
+                <!-- ⭐ Forçage "Upon Request" indépendant du prix -->
+                <p style="background: #fff8ec; border-left: 3px solid #ba6827; padding: 10px 12px; border-radius: 4px; margin-top: 10px;">
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; margin: 0;">
+                        <input type="checkbox" name="etb_upon_request" value="1" <?php checked( get_post_meta( $post->ID, '_etb_upon_request', true ), '1' ); ?>>
+                        <strong>Forcer « Upon Request » sur ce véhicule (peu importe le prix)</strong>
+                    </label>
+                    <span class="description" style="display: block; margin-top: 4px; font-size: 11px; margin-left: 24px;">Le véhicule reste affichable avec son tarif, mais est marqué comme nécessitant une confirmation manuelle. La notice « Premium Vehicle Request » s'affichera à la sélection.</span>
+                </p>
                  </div>
                 <div>
                     <label>Heure sup. au-delà de 10h (€/h) :</label><br>
@@ -688,6 +696,7 @@ class ETB_Meta_Manager {
                 update_post_meta( $post_id, '_etb_km_sup_rate', $km_sup_rate );
                 update_post_meta( $post_id, '_etb_hourly_quote_only', isset( $_POST['etb_hourly_quote_only'] ) ? '1' : '0' );
                 update_post_meta( $post_id, '_etb_transfer_quote_only', isset( $_POST['etb_transfer_quote_only'] ) ? '1' : '0' );
+                update_post_meta( $post_id, '_etb_upon_request', isset( $_POST['etb_upon_request'] ) ? '1' : '0' );
 
                 update_post_meta( $post_id, '_etb_max_pax', absint( $_POST['etb_max_pax'] ?? 0 ) );
                 update_post_meta( $post_id, '_etb_max_baggage', absint( $_POST['etb_max_bag'] ?? 0 ) );

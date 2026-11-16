@@ -97,7 +97,7 @@
 
 .etb-checkout-card-header h3 {
     font-size: 17px !important;
-    font-weight: 800 !important;
+    font-weight: 600 !important;
     color: #ffffff !important;
     margin: 0 0 4px 0 !important;
     letter-spacing: 0.02em !important;
@@ -143,7 +143,7 @@
 .etb-chk-grid-2 {
     display: grid !important;
     grid-template-columns: 1fr 1fr !important;
-    gap: 14px !important;
+    gap: 8px !important;
 }
 
 .etb-chk-field {
@@ -196,6 +196,7 @@
     color: #64748b !important;
     margin-top: 5px !important;
     line-height: 1.3 !important;
+    margin-bottom: 5px !important;
 }
 
 /* 4. Bascule Blacklane : Myself vs Guest */
@@ -561,7 +562,7 @@
 
 .etb-chk-summary-vehicle-meta h4 {
     font-size: 15px !important;
-    font-weight: 800 !important;
+    font-weight: 600 !important;
     color: var(--etb-text-primary, #ffffff) !important;
     margin: 0 0 10px 0 !important;
 }
@@ -2039,7 +2040,7 @@
 .etb-chk-qty-control {
   display: inline-flex !important;
   align-items: center !important;
-  justify-content: center !important;
+  /*justify-content: center !important;*/
   /* garde le reste de tes règles actuelles */
 }
 
@@ -2054,11 +2055,11 @@
   padding: 0 !important;
   margin: 0px !important;
   line-height: 1 !important;
+  padding-bottom: 4px !important;
 }
 
 /* Le chiffre : largeur fixe + centré */
 .etb-chk-qty-control  {
-  flex: 0 0 40px !important;
   width: 107px !important;
   height: 38px !important;
   padding: 0px !important;
@@ -2218,4 +2219,216 @@
     }
 }
 
+/* ==========================================================================
+   RÉSOLUTION DÉFINITIVE : Sélecteur capacité — Flexbox ROW, centré
+   Remplace tout grid précédent. Placé en fin de fichier pour l'emporter.
+   ========================================================================== */
+.etb-chk-capacity-3col,
+.etb-chk-capacity-box.etb-chk-capacity-3col {
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: wrap !important;
+    justify-content: center !important;
+    align-items: stretch !important;
+    gap: 12px !important;
+    width: 100% !important;
+    margin: 0 auto !important;
+}
 
+/* Chaque carte Pax / Bag / Cabin : égale, centrée, jamais coupée */
+.etb-chk-capacity-3col > *,
+.etb-chk-capacity-box.etb-chk-capacity-3col > * {
+    flex: 1 1 calc(33.333% - 8px) !important;
+    max-width: calc(33.333% - 8px) !important;
+    min-width: 150px !important;
+    width: auto !important;
+    text-align: center !important;
+    margin: 0 !important;
+}
+
+/* Label + icône centrées */
+.etb-chk-cap-label {
+    text-align: center !important;
+    align-items: center !important;
+    width: 100% !important;
+}
+
+.etb-chk-cap-label strong {
+    display: block !important;
+    text-align: center !important;
+    font-size: 13px !important;
+    line-height: 1.2 !important;
+    margin: 0 !important;
+    word-break: break-word !important;
+}
+
+.etb-chk-cap-label small {
+    display: block !important;
+    text-align: center !important;
+    font-size: 10px !important;
+    line-height: 1 !important;
+    margin-top: 2px !important;
+    margin-bottom: 6px !important;
+    word-break: break-word !important;
+}
+
+/* Icône SVG centrée */
+.etb-chk-cap-svg-wrap {
+    display: flex !important;
+    justify-content: center !important;
+    align-items: center !important;
+    width: 100% !important;
+    max-width: 34px !important;
+    height: 34px !important;
+    margin: 0 auto 6px auto !important;
+}
+
+.etb-chk-cap-svg-wrap svg {
+    width: auto !important;
+    height: 26px !important;
+    display: block !important;
+    margin: 0 auto !important;
+}
+
+/* Contrôles +/- centrés sous chaque carte */
+.etb-chk-qty-control {
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    gap: 6px !important;
+    margin-top: 8px !important;
+    width: 108px !important;
+    padding: 0 2px !important;
+}
+
+.etb-chk-qty-btn {
+    flex: 0 0 32px !important;
+    width: 32px !important;
+    height: 32px !important;
+    min-width: 32px !important;
+    min-height: 32px !important;
+    font-size: 15px !important;
+    padding: 0 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    line-height: 1 !important;
+}
+
+.etb-chk-cap-item input[type="number"] {
+    flex: 0 0 42px !important;
+    width: 20px !important;
+    max-width: 20px !important;
+    height: 32px !important;
+    min-height: 32px !important;
+    text-align: center !important;
+    font-size: 15px !important;
+    font-weight: 700 !important;
+    padding: 0 !important;
+    margin: 0 2px !important;
+    line-height: 1 !important;
+}
+
+/* Très petit écran : reste en ROW, 2 cartes par ligne, bien centré */
+@media (max-width: 480px) {
+    .etb-chk-capacity-3col,
+    .etb-chk-capacity-box.etb-chk-capacity-3col {
+        gap: 8px !important;
+        justify-content: center !important;
+    }
+    .etb-chk-capacity-3col > *,
+    .etb-chk-capacity-box.etb-chk-capacity-3col > * {
+        flex: 1 1 calc(50% - 4px) !important;
+        max-width: calc(50% - 4px) !important;
+        min-width: 140px !important;
+    }
+    .etb-chk-cap-label strong {
+        font-size: 12px !important;
+    }
+    .etb-chk-cap-label small {
+        font-size: 9.5px !important;
+        margin-bottom: 4px !important;
+    }
+    .etb-chk-qty-btn {
+        width: 28px !important;
+        height: 28px !important;
+        min-width: 28px !important;
+        min-height: 28px !important;
+        font-size: 14px !important;
+    }
+    .etb-chk-cap-item input[type="number"] {
+        width: 20px !important;
+        max-width: 20px !important;
+        height: 28px !important;
+        min-height: 28px !important;
+        font-size: 14px !important;
+    }
+}
+
+/* ==========================================================================
+   ÉCRAN DE SUCCÈS PAIEMENT : 2 BOUTONS (Retour Home / Retour Réservation)
+   Placé en fin de fichier pour l'emporter sur les règles précédentes.
+   ========================================================================== */
+.etb-success-actions {
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: wrap !important;
+    justify-content: center !important;
+    align-items: center !important;
+    gap: 12px !important;
+    margin-top: 22px !important;
+    width: 100% !important;
+}
+
+/* Bouton principal : ORANGE GOLD (Return to Home) */
+.etb-success-btn {
+    background: #fbac18 !important;
+    color: #0f172a !important;
+    border: none !important;
+    font-weight: 800 !important;
+    text-align: center !important;
+    text-decoration: none !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    flex: 0 0 auto !important;
+}
+.etb-success-btn:hover {
+    background: #e39402 !important;
+    color: #0f172a !important;
+}
+
+/* Bouton secondaire : NOIR (Return Booking) */
+.etb-success-btn-secondary {
+    background: #0f172a !important;
+    color: #ffffff !important;
+    border: none !important;
+    font-weight: 800 !important;
+    text-align: center !important;
+    text-decoration: none !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    flex: 0 0 auto !important;
+}
+.etb-success-btn-secondary:hover {
+    background: #1e293b !important;
+    color: #ffffff !important;
+}
+
+/* Sur très petit écran : les 2 boutons passent en colonne, centrés */
+@media (max-width: 480px) {
+    .etb-success-actions {
+        flex-direction: column !important;
+        align-items: stretch !important;
+        gap: 10px !important;
+    }
+    .etb-success-btn,
+    .etb-success-btn-secondary {
+        flex: 1 1 100% !important;
+        max-width: 100% !important;
+        width: 100% !important;
+        padding: 14px 20px !important;
+        font-size: 14px !important;
+    }
+}

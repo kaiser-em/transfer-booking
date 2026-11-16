@@ -1037,6 +1037,10 @@ class ETB_Ajax {
         $clean_name = preg_replace( '/[^\p{L}\p{N}\s\-\.]/u', '', $full_name );
         $clean_name = trim( preg_replace( '/\s+/', ' ', $clean_name ) );
 
+        // Lien WhatsApp direct vers le client (numéro saisi au formulaire)
+        $phone_digits = ! empty( $phone ) ? preg_replace( '/[^0-9+]/', '', $phone ) : '';
+        $whatsapp_link = ! empty( $phone_digits ) ? 'https://wa.me/' . ltrim( $phone_digits, '+' ) : '#';
+
         // En-têtes officiels stricts pour tous les envois (Client et Admin)
         $headers_client = ETB_Settings::get_mail_headers( $admin_email, $company_name );
         $headers_admin  = ETB_Settings::get_mail_headers( $email, $full_name );
@@ -1166,6 +1170,7 @@ class ETB_Ajax {
                 . '</div>'
                 . '<div style="padding: 28px;">'
                 . '<p style="margin: 2px 0;"><strong>Passenger:</strong> ' . esc_html( $full_name ) . ' (<a href="tel:' . esc_attr( $phone ) . '">' . esc_html( $phone ) . '</a> | ' . esc_html( $email ) . ')</p>'
+. '<p style="margin: 2px 0;"><a href="' . esc_url( $whatsapp_link ) . '" style="background: #25d366; color: #ffffff; padding: 8px 16px; border-radius: 50px; text-decoration: none; font-weight: 800; font-size: 13px; display: inline-block;">💬 WhatsApp ' . esc_html( $phone ) . '</a></p>'
                 . '<div style="margin: 18px 0;">' . $itinerary_table_html . '</div>'
                 . '<div style="background: #fffbeb; border: 1px solid #fef3c7; border-radius: 8px; padding: 16px; margin-bottom: 22px;">'
                 . '<strong style="font-size: 13px; color: #92400e; display: block; margin-bottom: 6px;">👉 Dispatch Procedure:</strong>'
@@ -1215,6 +1220,7 @@ class ETB_Ajax {
                 . '</div>'
                 . '<div style="padding: 28px;">'
                 . '<p style="margin: 2px 0;"><strong>Passenger:</strong> ' . esc_html( $full_name ) . ' (<a href="tel:' . esc_attr( $phone ) . '">' . esc_html( $phone ) . '</a> | ' . esc_html( $email ) . ')</p>'
+. '<p style="margin: 2px 0;"><a href="' . esc_url( $whatsapp_link ) . '" style="background: #25d366; color: #ffffff; padding: 8px 16px; border-radius: 50px; text-decoration: none; font-weight: 800; font-size: 13px; display: inline-block;">💬 WhatsApp ' . esc_html( $phone ) . '</a></p>'
                 . '<div style="margin: 18px 0;">' . $itinerary_table_html . '</div>'
                 . '<div style="background: #fffbeb; border: 1px solid #fef3c7; border-radius: 8px; padding: 14px; margin-bottom: 20px; font-size: 12.5px; color: #78350f;">'
                 . '<strong>👉 Action:</strong> Price the route(s) in LimoExpress and send the payment link to the client.'
@@ -1314,6 +1320,7 @@ class ETB_Ajax {
                     . '</div>'
                     . '<div style="padding: 28px;">'
                     . '<p style="margin: 4px 0;"><strong>Passenger:</strong> ' . esc_html( $full_name ) . ' (<a href="tel:' . esc_attr( $phone ) . '">' . esc_html( $phone ) . '</a> | ' . esc_html( $email ) . ')</p>'
+                    . '<p style="margin: 4px 0;"><a href="' . esc_url( $whatsapp_link ) . '" style="background: #25d366; color: #ffffff; padding: 8px 16px; border-radius: 50px; text-decoration: none; font-weight: 800; font-size: 13px; display: inline-block;">💬 WhatsApp ' . esc_html( $phone ) . '</a></p>'
                     . '<p style="margin: 4px 0;"><strong>Vehicle:</strong> ' . esc_html( $vehicle_title ) . '</p>'
                     . '<p style="margin: 4px 0;"><strong>Route:</strong> ' . esc_html( $pickup ) . ' ➔ ' . esc_html( $dropoff_label ) . '</p>'
                     . '<p style="margin: 4px 0;"><strong>Date & Time:</strong> ' . esc_html( $formatted_dt ) . ' at ' . esc_html( $time ) . '</p>'
@@ -2540,6 +2547,9 @@ class ETB_Ajax {
             $subject_admin  = sprintf( '💰 [PAYMENT RECEIVED] %s %s collected for Mission #%s — %s', number_format_i18n( $amount, 2 ), $currency_sym, $final_ref, $customer_name );
             $admin_edit_url = admin_url( 'post.php?post=' . $booking_id . '&action=edit' );
             $headers_admin  = ETB_Settings::get_mail_headers( $customer_email, $customer_name );
+            $customer_phone = get_post_meta( $booking_id, '_etb_customer_phone', true ) ?: '';
+            $cust_phone_digits = ! empty( $customer_phone ) ? preg_replace( '/[^0-9+]/', '', $customer_phone ) : '';
+            $cust_whatsapp_link = ! empty( $cust_phone_digits ) ? 'https://wa.me/' . ltrim( $cust_phone_digits, '+' ) : '#';
 
                         $message_admin  = '<div style="background-color: #f1f5f9; padding: 30px 15px; font-family: -apple-system, BlinkMacSystemFont, \'Segoe UI\', Roboto, Arial, sans-serif; line-height: 1.6; color: #1e293b;">'
                 . '<div style="max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.08);">'
@@ -2554,7 +2564,8 @@ class ETB_Ajax {
                 . '<p style="margin: 2px 0 0 0; font-size: 26px; font-weight: 900; color: #15803d;">' . number_format_i18n( $amount, 2 ) . ' ' . esc_html( $currency_sym ) . '</p>'
                 . '<p style="margin: 6px 0 0 0; font-size: 12px; color: #166534;">Card: ' . ucfirst( esc_html( $card_brand ) ) . ' •••• ' . esc_html( substr( $card_last4, -4 ) ) . ' (Exp: ' . esc_html( $card_exp ) . ')</p>'
                 . '</div>'
-                . '<p style="margin: 4px 0;"><strong>Passenger:</strong> ' . esc_html( $customer_name ) . ' (<a href="mailto:' . esc_attr( $customer_email ) . '">' . esc_html( $customer_email ) . '</a>)</p>'
+                . '<p style="margin: 4px 0;"><strong>Passenger:</strong> ' . esc_html( $customer_name ) . ' (<a href="mailto:' . esc_attr( $customer_email ) . '">' . esc_html( $customer_email ) . '</a> | <a href="tel:' . esc_attr( $customer_phone ) . '">' . esc_html( $customer_phone ) . '</a>)</p>'
+                . '<p style="margin: 4px 0;"><a href="' . esc_url( $cust_whatsapp_link ) . '" style="background: #25d366; color: #ffffff; padding: 8px 16px; border-radius: 50px; text-decoration: none; font-weight: 800; font-size: 13px; display: inline-block;">💬 WhatsApp ' . esc_html( $customer_phone ) . '</a></p>'
                 . '<p style="margin: 4px 0;"><strong>Stripe Transaction ID:</strong> <code style="font-size: 11px; background: #f1f5f9; padding: 2px 6px; border-radius: 4px;">' . esc_html( $intent_id ) . '</code></p>'
                 
                 // 💡 AJOUTER CETTE LIGNE POUR INCLURE TOUS LES DÉTAILS
