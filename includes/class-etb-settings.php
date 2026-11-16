@@ -463,6 +463,7 @@ class ETB_Settings {
                                             <select name="etb_general_settings[active_dispatcher]" class="regular-text" style="font-weight: 700; color: #0f172a; border-color: #cbd5e1;">
                                                 <option value="none" <?php selected( $active_dispatcher, 'none' ); ?>>⚪ Aucune (Mode 100% Autonome)</option>
                                                 <option value="limoexpress" <?php selected( $active_dispatcher, 'limoexpress' ); ?>>🔴 LimoExpress</option>
+                                                <option value="kymark" <?php selected( $active_dispatcher, 'kymark' ); ?>>🟠 Kymark</option>
                                             </select>
                                             <p class="description">Choisissez le logiciel qui recevra vos réservations en temps réel.</p>
                                         </td>

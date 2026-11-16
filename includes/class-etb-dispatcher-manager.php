@@ -30,8 +30,16 @@ class ETB_Dispatcher_Manager {
             }
         }
 
-        // Si Kymark ou autre (Prêt pour le futur)
-        // if ( 'kymark' === $active_dispatcher ) { ... }
+        // Si Kymark est sélectionné
+        if ( 'kymark' === $active_dispatcher && class_exists( 'ETB_Kymark' ) ) {
+            $success = ETB_Kymark::send_booking( $booking_id, $data );
+            if ( $success ) {
+                return array( 'success' => true, 'message' => 'Synchronisé vers Kymark.' );
+            } else {
+                $error_msg = get_post_meta( $booking_id, '_etb_kymark_error', true ) ?: 'Erreur Kymark inconnue.';
+                return array( 'success' => false, 'message' => $error_msg );
+            }
+        }
 
         return array( 'success' => false, 'message' => 'Application de dispatch non reconnue.' );
     }

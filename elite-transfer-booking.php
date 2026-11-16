@@ -164,6 +164,7 @@ class Elite_Transfer_Booking {
          require_once ETB_PATH . 'includes/class-etb-limoexpress.php'; // <-- AJOUT DE CETTE LIGNE
          require_once ETB_PATH . 'includes/class-etb-stripe.php'; // <-- Connecteur Stripe autonome
          require_once ETB_PATH . 'includes/class-etb-dispatcher-manager.php'; // <-- AJOUT DE CETTE LIGNE
+         require_once ETB_PATH . 'includes/class-etb-kymark.php'; // <-- Intégration Kymark (squelette)
         require_once ETB_PATH . 'includes/class-etb-security.php';
         require_once ETB_PATH . 'includes/class-etb-cpt-manager.php';
         require_once ETB_PATH . 'includes/class-etb-settings.php';
@@ -198,6 +199,11 @@ class Elite_Transfer_Booking {
         // Branchement du module LimoExpress sur la Prise Universelle ETB
         if ( class_exists( 'ETB_LimoExpress' ) ) {
             ETB_LimoExpress::init_hooks();
+        }
+
+        // Branchement du module Kymark sur la Prise Universelle ETB
+        if ( class_exists( 'ETB_Kymark' ) ) {
+            ETB_Kymark::init_hooks();
         }
     }
 
