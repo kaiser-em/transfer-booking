@@ -2190,7 +2190,8 @@ class ETB_Ajax {
         $target_uuid = ! empty( $limo_uuid ) ? $limo_uuid : $limo_id;
 
         // 6. Mise à jour officielle de la course dans LimoExpress (POST /api/integration/bookings)
-        if ( ! empty( $limo_token ) && ! empty( $target_uuid ) ) {
+        $active_dispatcher = $gen_settings['active_dispatcher'] ?? 'none';
+        if ( 'limoexpress' === $active_dispatcher && ! empty( $limo_token ) && ! empty( $target_uuid ) ) {
             $headers = array(
                 'Content-Type'  => 'application/json',
                 'Accept'        => 'application/json',
