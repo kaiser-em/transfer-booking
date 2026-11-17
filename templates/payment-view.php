@@ -70,7 +70,9 @@ if ( $url_amount > 0 ) {
     $settled_amount = floatval( get_post_meta( $booking_id, '_etb_total_price', true ) );
 
     // ── LIMOEXPRESS-FIRST : SYNCHRONISATION MIROIR EN TEMPS RÉEL ──
-    if ( ! $is_already_paid && class_exists( 'ETB_LimoExpress' ) ) {
+    // (uniquement si LimoExpress est le dispatcher actif — aucun appel API sinon)
+    $etb_pay_settings = get_option( 'etb_general_settings', array() );
+    if ( ! $is_already_paid && 'limoexpress' === ( $etb_pay_settings['active_dispatcher'] ?? 'none' ) && class_exists( 'ETB_LimoExpress' ) ) {
         $limo_id   = get_post_meta( $booking_id, '_etb_limo_booking_id', true );
         $limo_uuid = get_post_meta( $booking_id, '_etb_limo_uuid', true );
         $search_id = ! empty( $limo_uuid ) ? $limo_uuid : $limo_id;

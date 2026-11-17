@@ -2670,7 +2670,9 @@ class ETB_Ajax {
         }
 
         // 2. Vérification LimoExpress (au cas où le client a payé hors ligne)
-        if ( class_exists( 'ETB_LimoExpress' ) ) {
+        // (uniquement si LimoExpress est le dispatcher actif)
+        $reminder_settings = get_option( 'etb_general_settings', array() );
+        if ( 'limoexpress' === ( $reminder_settings['active_dispatcher'] ?? 'none' ) && class_exists( 'ETB_LimoExpress' ) ) {
             $limo_id   = get_post_meta( $booking_id, '_etb_limo_booking_id', true );
             $limo_uuid = get_post_meta( $booking_id, '_etb_limo_uuid', true );
             $search_id = ! empty( $limo_uuid ) ? $limo_uuid : $limo_id;
