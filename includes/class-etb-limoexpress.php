@@ -32,6 +32,17 @@ class ETB_LimoExpress {
             delete_transient( 'etb_limo_classes_cache' );
             delete_transient( 'etb_limo_types_cache' );
             delete_transient( 'etb_limo_statuses_cache' );
+        } else {
+            // ⚠️ Autre dispatcher actif (Kymark, none...) : les champs LimoExpress ne sont
+            // pas rendus dans le formulaire et donc absents de $raw_input. Sans cette
+            // préservation, chaque sauvegarde effacerait le token LimoExpress de la base
+            // (bug : le pricing de /transfer dépend du jeton LimoExpress même sous Kymark).
+            $existing = get_option( 'etb_general_settings', array() );
+            foreach ( array( 'limo_api_token', 'limo_client_id', 'limo_booking_type_id', 'limo_hourly_type_id', 'limo_booking_status_id' ) as $limo_key ) {
+                if ( ! array_key_exists( $limo_key, $new_input ) && isset( $existing[ $limo_key ] ) ) {
+                    $new_input[ $limo_key ] = $existing[ $limo_key ];
+                }
+            }
         }
         return $new_input;
     }
