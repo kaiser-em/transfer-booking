@@ -134,12 +134,24 @@ class ETB_Ajax {
         $dispatch_result = ETB_Dispatcher_Manager::dispatch_booking( $booking_id, $data );
 
         if ( $dispatch_result['success'] ) {
-            $limo_id      = get_post_meta( $booking_id, '_etb_limo_booking_id', true );
-            $client_debug = get_post_meta( $booking_id, '_etb_limo_client_debug', true );
-            wp_send_json_success( array(
-                'limo_id'      => $limo_id,
-                'client_debug' => $client_debug,
-            ) );
+            $gen_settings    = get_option( 'etb_general_settings', array() );
+            $active_dispatcher = $gen_settings['active_dispatcher'] ?? 'none';
+
+            if ( 'kymark' === $active_dispatcher ) {
+                $kymark_id   = get_post_meta( $booking_id, '_etb_kymark_booking_id', true );
+                $kymark_uuid = get_post_meta( $booking_id, '_etb_kymark_uuid', true );
+                wp_send_json_success( array(
+                    'kymark_id'   => $kymark_id,
+                    'kymark_uuid' => $kymark_uuid,
+                ) );
+            } else {
+                $limo_id      = get_post_meta( $booking_id, '_etb_limo_booking_id', true );
+                $client_debug = get_post_meta( $booking_id, '_etb_limo_client_debug', true );
+                wp_send_json_success( array(
+                    'limo_id'      => $limo_id,
+                    'client_debug' => $client_debug,
+                ) );
+            }
         } else {
             wp_send_json_error( array( 'message' => $dispatch_result['message'] ) );
         }
@@ -1003,17 +1015,31 @@ class ETB_Ajax {
             $booking_ref = ! empty( $combined_limo_ref ) ? $combined_limo_ref : (string) $booking_id;
         } else {
             // ── MONO-TRAJET : DISPATCH CLASSIQUE INTACT (ZÉRO RÉGRESSION) ──
+            $gen_settings    = get_option( 'etb_general_settings', array() );
+            $active_dispatcher = $gen_settings['active_dispatcher'] ?? 'none';
+
             $dispatch_result = ETB_Dispatcher_Manager::dispatch_booking( $booking_id, $dispatch_data );
 
             if ( $dispatch_result['success'] ) {
-                update_post_meta( $booking_id, '_etb_limo_status', 'synced' );
+                if ( 'kymark' === $active_dispatcher ) {
+                    update_post_meta( $booking_id, '_etb_kymark_status', 'synced' );
+                } else {
+                    update_post_meta( $booking_id, '_etb_limo_status', 'synced' );
+                }
             } else {
-                update_post_meta( $booking_id, '_etb_limo_status', 'failed' );
-                update_post_meta( $booking_id, '_etb_limo_error', $dispatch_result['message'] );
+                if ( 'kymark' === $active_dispatcher ) {
+                    update_post_meta( $booking_id, '_etb_kymark_status', 'failed' );
+                    update_post_meta( $booking_id, '_etb_kymark_error', $dispatch_result['message'] );
+                } else {
+                    update_post_meta( $booking_id, '_etb_limo_status', 'failed' );
+                    update_post_meta( $booking_id, '_etb_limo_error', $dispatch_result['message'] );
+                }
             }
 
-            $limo_official_id = get_post_meta( $booking_id, '_etb_limo_booking_id', true );
-            $booking_ref      = ( ! empty( $limo_official_id ) && 'OK' !== $limo_official_id ) ? $limo_official_id : ( '#' . $booking_id );
+            $limo_official_id  = get_post_meta( $booking_id, '_etb_limo_booking_id', true );
+            $kymark_official_id = get_post_meta( $booking_id, '_etb_kymark_booking_id', true );
+            $booking_ref       = ( ! empty( $limo_official_id ) && 'OK' !== $limo_official_id ) ? $limo_official_id :
+                                 ( ! empty( $kymark_official_id ) ? $kymark_official_id : ( '#' . $booking_id ) );
         }
 
         // Mise à jour du titre du dossier WordPress avec la référence officielle LimoExpress

@@ -26,7 +26,7 @@ class ETB_Kymark {
      * Mode simulation : si true, aucune requête HTTP n'est envoyée à Kymark.
      * À passer à false une fois les vrais endpoints validés.
      */
-    const SIMULATE = true;
+    const SIMULATE = false;
 
     /**
      * Branche le module Kymark sur le socle ETB (Hooks WordPress)
