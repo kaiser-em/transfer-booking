@@ -197,9 +197,6 @@ class ETB_Kymark {
             return true;
         }
 
-        // 3. Client Kymark (création ou détection)
-        $client_id = self::get_or_create_client( $data, $settings, $booking_id );
-
         // 4. Données de réservation
         $name_parts   = explode( ' ', trim( $data['name'] ?? '' ), 2 );
         $first_name   = ! empty( $name_parts[0] ) ? $name_parts[0] : 'Client';
@@ -222,8 +219,6 @@ class ETB_Kymark {
         }
         $grand_total = floatval( $data['pricing']['grand_total'] ?? 0.0 );
 
-        $is_paid = ! empty( $data['paid'] ) || ! empty( $data['payment_intent_id'] );
-
         // 5. Notes opérationnelles (comme LimoExpress : tout le terrain, zéro finance)
         $notes = ! empty( $data['client_note'] ) ? trim( $data['client_note'] ) : '';
         if ( ! empty( $data['waiting_board_text'] ) ) {
@@ -236,90 +231,230 @@ class ETB_Kymark {
             $notes .= "\n🏢 RÉF : " . trim( $data['cost_center'] );
         }
 
-        // 6. Construction du payload Kymark (champs vus dans l'exemple POST /v1/shuttle_bookings)
-        // trip_id est omis : généré par Kymark à la création (à confirmer)
-        $payload = array(
-            'rider_name'             => $rider_name,
-            'rider_email'            => $rider_email,
-            'rider_phone'            => $rider_phone,
-            'seat_count'             => $total_passengers,
-            'seat_price'             => (float) round( $base_ride_price, 2 ),
-            'total_price'            => (float) round( $grand_total, 2 ),
-            'status'                 => $is_paid ? 'confirmed' : 'pending',
-            'payment_status'         => $is_paid ? 'paid' : 'pending',
-            'notes'                  => $notes,
-            'stripe_payment_intent_id' => ! empty( $data['payment_intent_id'] ) ? $data['payment_intent_id'] : '',
-            'stripe_charge_id'       => ! empty( $data['payment_intent_id'] ) ? $data['payment_intent_id'] : '',
-        );
+        // 6. Résolution véhicule WP → véhicule Kymark (type de course)
+        $vehicle_type        = '';
+        $kymark_vehicle_uuid = '';
+        $wp_vehicle_ids      = array_keys( (array) ( $data['vehicles'] ?? array() ) );
+        $wp_vehicle_id       = ! empty( $wp_vehicle_ids[0] ) ? absint( $wp_vehicle_ids[0] ) : 0;
+        if ( $wp_vehicle_id ) {
+            $kymark_vehicle_uuid = trim( get_post_meta( $wp_vehicle_id, '_etb_kymark_vehicle_id', true ) );
+        }
+        if ( ! empty( $kymark_vehicle_uuid ) ) {
+            $kymark_vehicles = self::get_vehicles();
+            if ( ! is_wp_error( $kymark_vehicles ) ) {
+                foreach ( $kymark_vehicles as $kv ) {
+                    if ( ( $kv['id'] ?? '' ) === $kymark_vehicle_uuid ) {
+                        $vehicle_type = (string) ( $kv['type'] ?? '' );
+                        break;
+                    }
+                }
+            }
+        }
 
-        // 7. Envoi vers l'API Kymark
-        $response = wp_remote_post( self::API_ENDPOINT, array(
+        // 7. Date/heure de pickup au format ISO 8601 (timezone du site)
+        $pickup_date_raw = trim( (string) ( $data['date'] ?? '' ) );
+        $pickup_time_raw = trim( (string) ( $data['time'] ?? '' ) );
+        $pickup_iso      = '';
+        if ( $pickup_date_raw ) {
+            $tz = wp_timezone();
+            if ( $pickup_time_raw && preg_match( '/^\d{1,2}:\d{2}/', $pickup_time_raw ) ) {
+                $pickup_dt = DateTime::createFromFormat( 'Y-m-d H:i', $pickup_date_raw . ' ' . substr( $pickup_time_raw, 0, 5 ), $tz );
+            } else {
+                $pickup_dt = DateTime::createFromFormat( 'Y-m-d', $pickup_date_raw, $tz );
+            }
+            if ( $pickup_dt ) {
+                $pickup_iso = $pickup_dt->format( 'c' );
+            }
+        }
+
+        $pickup_address  = trim( (string) ( $data['pickup_address'] ?? '' ) );
+        $dropoff_address = trim( (string) ( $data['dropoff_info'] ?? '' ) );
+
+        if ( empty( $pickup_iso ) || empty( $pickup_address ) || empty( $dropoff_address ) ) {
+            update_post_meta( $booking_id, '_etb_kymark_status', 'failed' );
+            update_post_meta( $booking_id, '_etb_kymark_error', 'Données de course incomplètes pour Kymark (adresse ou date/heure).' );
+            return false;
+        }
+
+        $is_paid = ! empty( $data['paid'] ) || ! empty( $data['payment_intent_id'] );
+
+        // 8. ÉTAPE 1 — Création de la course : POST /v1/trips
+        //    Champs validés : pickup_address, dropoff_address, pickup_date (obligatoires)
+        $trip_payload = array(
+            'pickup_address'  => $pickup_address,
+            'dropoff_address' => $dropoff_address,
+            'pickup_date'     => $pickup_iso,
+            'passenger_count' => $total_passengers,
+            'price'           => (float) round( $grand_total, 2 ),
+            'status'          => 'confirmed',
+            'payment_status'  => $is_paid ? 'paid' : 'unpaid',
+            'notes'           => $notes,
+        );
+        if ( ! empty( $vehicle_type ) ) {
+            $trip_payload['vehicle_type'] = $vehicle_type;
+        }
+
+        $trip_res = self::api_request( 'POST', '/trips', $trip_payload );
+        if ( is_wp_error( $trip_res ) ) {
+            update_post_meta( $booking_id, '_etb_kymark_status', 'failed' );
+            update_post_meta( $booking_id, '_etb_kymark_error', 'Création du trip Kymark : ' . $trip_res->get_error_message() );
+            return false;
+        }
+
+        $trip_uuid = (string) ( $trip_res['data']['id'] ?? '' );
+        if ( empty( $trip_uuid ) ) {
+            update_post_meta( $booking_id, '_etb_kymark_status', 'failed' );
+            update_post_meta( $booking_id, '_etb_kymark_error', 'Trip Kymark créé mais sans ID retourné.' );
+            return false;
+        }
+        update_post_meta( $booking_id, '_etb_kymark_trip_uuid', $trip_uuid );
+        if ( ! empty( $trip_res['data']['trip_number'] ) ) {
+            update_post_meta( $booking_id, '_etb_kymark_trip_number', (string) $trip_res['data']['trip_number'] );
+        }
+
+        // 9. ÉTAPE 2 — Réservation des sièges rattachée au trip : POST /v1/shuttle_bookings
+        //    Champs validés : trip_id, rider_*, seat_*, total_price obligatoires
+        $payload = array(
+            'trip_id'        => $trip_uuid,
+            'rider_name'     => $rider_name,
+            'rider_email'    => $rider_email,
+            'rider_phone'    => $rider_phone,
+            'seat_count'     => $total_passengers,
+            'seat_price'     => (float) round( $base_ride_price, 2 ),
+            'total_price'    => (float) round( $grand_total, 2 ),
+            'status'         => 'confirmed',
+            'payment_status' => $is_paid ? 'paid' : 'pending',
+            'notes'          => $notes,
+        );
+        if ( ! empty( $data['payment_intent_id'] ) ) {
+            $payload['stripe_payment_intent_id'] = (string) $data['payment_intent_id'];
+            $payload['stripe_charge_id']         = (string) $data['payment_intent_id'];
+        }
+
+        $res = self::api_request( 'POST', '/shuttle_bookings', $payload );
+        if ( is_wp_error( $res ) ) {
+            update_post_meta( $booking_id, '_etb_kymark_status', 'failed' );
+            update_post_meta( $booking_id, '_etb_kymark_error', 'Réservation Kymark : ' . $res->get_error_message() );
+            return false;
+        }
+
+        $kymark_id = (string) ( $res['data']['id'] ?? '' );
+        update_post_meta( $booking_id, '_etb_kymark_status', 'synced' );
+        update_post_meta( $booking_id, '_etb_kymark_booking_id', ! empty( $kymark_id ) ? $kymark_id : 'KYM-' . $booking_id );
+        if ( ! empty( $kymark_id ) ) {
+            update_post_meta( $booking_id, '_etb_kymark_uuid', $kymark_id );
+        }
+        delete_post_meta( $booking_id, '_etb_kymark_error' );
+        return true;
+    }
+
+    /**
+     * Requête POST / PATCH sur l'API Kymark.
+     *
+     * @param string $method  'POST' ou 'PATCH'
+     * @param string $path    Chemin après la base (ex: '/trips')
+     * @param array  $payload Body JSON
+     * @return array|WP_Error Body décodé ou erreur (message d'API Kymark inclus)
+     */
+    private static function api_request( $method, $path, $payload ) {
+        $settings = get_option( 'etb_general_settings', array() );
+        $token    = $settings['kymark_api_token'] ?? '';
+        if ( empty( $token ) ) {
+            return new WP_Error( 'etb_kymark_no_token', 'Clé API Kymark manquante dans les réglages.' );
+        }
+
+        $args = array(
             'headers' => array(
-                'Content-Type'  => 'application/json',
-                'Accept'        => 'application/json',
-                'X-API-Key'     => $api_token,
+                'Content-Type' => 'application/json',
+                'Accept'       => 'application/json',
+                'X-API-Key'    => $token,
             ),
             'body'    => wp_json_encode( $payload ),
             'timeout' => 15,
-        ) );
+        );
+
+        if ( 'PATCH' === $method ) {
+            $response = wp_remote_request( self::API_BASE . $path, array_merge( $args, array( 'method' => 'PATCH' ) ) );
+        } else {
+            $response = wp_remote_post( self::API_BASE . $path, $args );
+        }
 
         if ( is_wp_error( $response ) ) {
-            update_post_meta( $booking_id, '_etb_kymark_status', 'failed' );
-            update_post_meta( $booking_id, '_etb_kymark_error', 'Erreur HTTP Kymark: ' . $response->get_error_message() );
-            return false;
+            return $response;
         }
 
         $status_code = wp_remote_retrieve_response_code( $response );
         $raw_body    = wp_remote_retrieve_body( $response );
         $body        = json_decode( $raw_body, true );
 
-        if ( $status_code >= 200 && $status_code < 300 ) {
-            // Extraction défensive de l'ID retourné par Kymark (champ exact à confirmer)
-            $kymark_id   = '';
-            $kymark_ref  = '';
-
-            if ( ! empty( $body['data'] ) && is_array( $body['data'] ) ) {
-                $kymark_id = ! empty( $body['data']['id'] ) ? sanitize_text_field( $body['data']['id'] ) : '';
-                $kymark_ref = ! empty( $body['data']['reference'] ) ? sanitize_text_field( $body['data']['reference'] ) :
-                              ( ! empty( $body['data']['booking_id'] ) ? sanitize_text_field( $body['data']['booking_id'] ) : '' );
+        if ( $status_code < 200 || $status_code >= 300 ) {
+            $err_details = '';
+            if ( ! empty( $body['error'] ) ) {
+                $err_details = $body['error'];
+            } elseif ( ! empty( $body['message'] ) ) {
+                $err_details = $body['message'];
+            } elseif ( ! empty( $body['fields'] ) && is_array( $body['fields'] ) ) {
+                $parts = array();
+                foreach ( $body['fields'] as $f ) {
+                    $parts[] = ( $f['field'] ?? '' ) . ': ' . ( $f['message'] ?? '' );
+                }
+                $err_details = implode( '; ', $parts );
             } else {
-                $kymark_id = ! empty( $body['id'] ) ? sanitize_text_field( $body['id'] ) : '';
-                $kymark_ref = ! empty( $body['reference'] ) ? sanitize_text_field( $body['reference'] ) :
-                              ( ! empty( $body['booking_id'] ) ? sanitize_text_field( $body['booking_id'] ) : '' );
+                $err_details = substr( strip_tags( $raw_body ), 0, 200 );
             }
-
-            if ( empty( $kymark_ref ) && ! empty( $kymark_id ) ) {
-                $kymark_ref = $kymark_id;
-            }
-
-            update_post_meta( $booking_id, '_etb_kymark_status', 'synced' );
-            update_post_meta( $booking_id, '_etb_kymark_booking_id', $kymark_ref ?: 'synced-' . $booking_id );
-            if ( ! empty( $kymark_id ) ) {
-                update_post_meta( $booking_id, '_etb_kymark_uuid', $kymark_id );
-            }
-            delete_post_meta( $booking_id, '_etb_kymark_error' );
-            return true;
+            return new WP_Error( 'etb_kymark_api', 'HTTP ' . $status_code . ( $err_details ? ' : ' . $err_details : '' ) );
         }
 
-        // Échec : extraction du message d'erreur
-        $err_details = '';
-        if ( ! empty( $body['error'] ) ) {
-            $err_details = $body['error'];
-        } elseif ( ! empty( $body['message'] ) ) {
-            $err_details = $body['message'];
-        } elseif ( ! empty( $body['fields'] ) && is_array( $body['fields'] ) ) {
-            $parts = array();
-            foreach ( $body['fields'] as $f ) {
-                $parts[] = ! empty( $f['field'] ) ? $f['field'] . ': ' . ( $f['message'] ?? '' ) : '';
-            }
-            $err_details = implode( '; ', $parts );
-        } else {
-            $err_details = substr( strip_tags( $raw_body ), 0, 200 );
+        return is_array( $body ) ? $body : array();
+    }
+
+    /**
+     * Après paiement Stripe : PATCH /v1/shuttle_bookings/{id}
+     * payment_status 'paid' + status 'confirmed' + IDs Stripe.
+     *
+     * @param int    $booking_id      Réservation WordPress
+     * @param string $stripe_intent_id PaymentIntent Stripe (optionnel)
+     * @return array { success: bool, message: string }
+     */
+    public static function mark_booking_paid( $booking_id, $stripe_intent_id = '' ) {
+        $booking_id = absint( $booking_id );
+        if ( ! $booking_id ) {
+            return array( 'success' => false, 'message' => 'Réservation WordPress invalide.' );
         }
 
-        update_post_meta( $booking_id, '_etb_kymark_status', 'failed' );
-        update_post_meta( $booking_id, '_etb_kymark_error', sprintf( 'HTTP %s (Kymark): %s', $status_code, $err_details ) );
-        return false;
+        $settings = get_option( 'etb_general_settings', array() );
+        $simulate = ( ! empty( $settings['kymark_simulate'] ) && '1' === $settings['kymark_simulate'] ) || self::SIMULATE;
+
+        if ( $simulate ) {
+            update_post_meta( $booking_id, '_etb_kymark_payment_status', 'paid (simulation)' );
+            return array( 'success' => true, 'message' => 'Mode simulation : paiement Kymark simulé.' );
+        }
+
+        $booking_uuid = get_post_meta( $booking_id, '_etb_kymark_uuid', true );
+        if ( empty( $booking_uuid ) ) {
+            update_post_meta( $booking_id, '_etb_kymark_error', 'Aucun ID shuttle_booking Kymark à mettre à jour.' );
+            return array( 'success' => false, 'message' => 'Aucun ID Kymark enregistré pour cette réservation.' );
+        }
+
+        $payload = array(
+            'payment_status' => 'paid',
+            'status'         => 'confirmed',
+        );
+        if ( ! empty( $stripe_intent_id ) ) {
+            $payload['stripe_payment_intent_id'] = (string) $stripe_intent_id;
+            $payload['stripe_charge_id']         = (string) $stripe_intent_id;
+        }
+
+        $res = self::api_request( 'PATCH', '/shuttle_bookings/' . rawurlencode( $booking_uuid ), $payload );
+        if ( is_wp_error( $res ) ) {
+            update_post_meta( $booking_id, '_etb_kymark_status', 'failed' );
+            update_post_meta( $booking_id, '_etb_kymark_error', 'Mise à jour paiement Kymark : ' . $res->get_error_message() );
+            return array( 'success' => false, 'message' => $res->get_error_message() );
+        }
+
+        update_post_meta( $booking_id, '_etb_kymark_payment_status', 'paid' );
+        delete_post_meta( $booking_id, '_etb_kymark_error' );
+        return array( 'success' => true, 'message' => 'Paiement synchronisé vers Kymark.' );
     }
 
     /**

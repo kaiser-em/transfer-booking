@@ -1486,6 +1486,30 @@ class ETB_Ajax {
      * Retourne 0.0 si le prix ne peut pas être vérifié (le trajet devient un devis sur mesure).
      */
     private function resolve_server_transfer_price( $vehicle_id, $trip ) {
+        // ─── Branche Kymark : prix depuis les zones/routes Kymark (cohérence avec le front) ───
+        // Aucun calcul local : si Kymark n'a pas de tarif pour cette route, on renvoie 0
+        // et l'appelant bascule en mode devis (is_quote).
+        $dispatcher_settings = get_option( 'etb_general_settings', array() );
+        if ( 'kymark' === ( $dispatcher_settings['active_dispatcher'] ?? 'none' ) && class_exists( 'ETB_Kymark' ) ) {
+            $kymark_vehicle_uuid = trim( (string) get_post_meta( $vehicle_id, '_etb_kymark_vehicle_id', true ) );
+            $km_from_lat = floatval( $trip['pickup_lat'] ?? $trip['from_lat'] ?? 0 );
+            $km_from_lng = floatval( $trip['pickup_lng'] ?? $trip['from_lng'] ?? 0 );
+            $km_to_lat   = floatval( $trip['dropoff_lat'] ?? $trip['to_lat'] ?? 0 );
+            $km_to_lng   = floatval( $trip['dropoff_lng'] ?? $trip['to_lng'] ?? 0 );
+
+            if ( $kymark_vehicle_uuid && $km_from_lat && $km_from_lng && $km_to_lat && $km_to_lng ) {
+                $km_quote = ETB_Kymark::get_transfer_quote( $km_from_lat, $km_from_lng, $km_to_lat, $km_to_lng );
+                if ( ! is_wp_error( $km_quote ) && ! empty( $km_quote['zone_found'] ) ) {
+                    foreach ( $km_quote['vehicles'] as $km_v ) {
+                        if ( ( $km_v['kymark_vehicle_id'] ?? '' ) === $kymark_vehicle_uuid && floatval( $km_v['price'] ?? 0 ) > 0 ) {
+                            return (float) round( floatval( $km_v['price'] ), 2 );
+                        }
+                    }
+                }
+            }
+            return 0.0;
+        }
+
         $from_lat = floatval( $trip['pickup_lat'] ?? $trip['from_lat'] ?? 0 );
         $from_lng = floatval( $trip['pickup_lng'] ?? $trip['from_lng'] ?? 0 );
         $to_lat   = floatval( $trip['dropoff_lat'] ?? $trip['to_lat'] ?? 0 );
@@ -2438,6 +2462,14 @@ class ETB_Ajax {
                 }
                 update_post_meta( $booking_id, '_etb_limo_status', 'failed' );
                 update_post_meta( $booking_id, '_etb_limo_error', 'LimoExpress update error: ' . $err_msg );
+            }
+        }
+
+        // ─── Kymark : synchronisation du paiement (PATCH payment_status/status + IDs Stripe) ───
+        if ( 'kymark' === ( $gen_settings['active_dispatcher'] ?? 'none' ) && class_exists( 'ETB_Kymark' ) ) {
+            $kymark_pay_result = ETB_Kymark::mark_booking_paid( $booking_id, $intent_id );
+            if ( ! empty( $kymark_pay_result['success'] ) ) {
+                $limo_synced = true; // Indicateur générique de synchro dispatcher (consommé par le front)
             }
         }
 
