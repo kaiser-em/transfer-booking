@@ -309,13 +309,15 @@ class ETB_Kymark {
         $is_paid = ! empty( $data['paid'] ) || ! empty( $data['payment_intent_id'] );
 
         // 8. ÉTAPE 1 — Création de la course : POST /v1/trips
-        //    Champs validés : pickup_address, dropoff_address, pickup_date (obligatoires)
+        //    Le 'price' est le tarif de transport seul (base_fare, sans tip ni extras),
+        //    envoyés séparément (gratuity, notes). Le total payé client reste
+        //    dans le shuttle_booking (total_price).
         $trip_payload = array(
             'pickup_address'  => $pickup_address,
             'dropoff_address' => $dropoff_address,
             'pickup_date'     => $pickup_iso,
             'passenger_count' => $total_passengers,
-            'price'           => (float) round( $grand_total, 2 ),
+            'price'           => (float) round( $data['pricing']['base_fare'] ?? $grand_total, 2 ),
             'status'          => 'confirmed',
             'payment_status'  => $is_paid ? 'paid' : 'unpaid',
             'notes'           => $notes,
@@ -498,19 +500,17 @@ class ETB_Kymark {
         delete_post_meta( $booking_id, '_etb_kymark_error' );
 
         // 8bis. Marquer aussi le trip comme payé (PATCH /v1/trips/{id})
+        // NOTE : stripe_payment_intent_id / stripe_charge_id ne sont PAS writable
+        // sur /v1/trips (seulement sur /v1/shuttle_bookings). On ne les garde
+        // que sur le shuttle_booking au-dessus.
         $trip_uuid = get_post_meta( $booking_id, '_etb_kymark_trip_uuid', true );
         if ( ! empty( $trip_uuid ) ) {
             $trip_payload = array(
                 'payment_status' => 'paid',
                 'status'         => 'confirmed',
             );
-            if ( ! empty( $stripe_intent_id ) ) {
-                $trip_payload['stripe_payment_intent_id'] = (string) $stripe_intent_id;
-                $trip_payload['stripe_charge_id']         = (string) $stripe_intent_id;
-            }
             $trip_res = self::api_request( 'PATCH', '/trips/' . rawurlencode( $trip_uuid ), $trip_payload );
             if ( is_wp_error( $trip_res ) ) {
-                // Non bloquant : le shuttle_booking est déjà à jour. On note l'avertissement.
                 update_post_meta( $booking_id, '_etb_kymark_trip_patch_error', $trip_res->get_error_message() );
             } else {
                 delete_post_meta( $booking_id, '_etb_kymark_trip_patch_error' );
