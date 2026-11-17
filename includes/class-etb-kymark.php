@@ -294,6 +294,12 @@ class ETB_Kymark {
             $trip_payload['vehicle_type'] = $vehicle_type;
         }
 
+        // 8bis. Customer Kymark rattaché au passager (pour que le nom apparaisse sur le trip)
+        $customer_record_id = self::get_or_create_customer( $data, $settings );
+        if ( ! empty( $customer_record_id ) ) {
+            $trip_payload['customer_record_id'] = $customer_record_id;
+        }
+
         $trip_res = self::api_request( 'POST', '/trips', $trip_payload );
         if ( is_wp_error( $trip_res ) ) {
             update_post_meta( $booking_id, '_etb_kymark_status', 'failed' );
@@ -454,6 +460,27 @@ class ETB_Kymark {
 
         update_post_meta( $booking_id, '_etb_kymark_payment_status', 'paid' );
         delete_post_meta( $booking_id, '_etb_kymark_error' );
+
+        // 8bis. Marquer aussi le trip comme payé (PATCH /v1/trips/{id})
+        $trip_uuid = get_post_meta( $booking_id, '_etb_kymark_trip_uuid', true );
+        if ( ! empty( $trip_uuid ) ) {
+            $trip_payload = array(
+                'payment_status' => 'paid',
+                'status'         => 'confirmed',
+            );
+            if ( ! empty( $stripe_intent_id ) ) {
+                $trip_payload['stripe_payment_intent_id'] = (string) $stripe_intent_id;
+                $trip_payload['stripe_charge_id']         = (string) $stripe_intent_id;
+            }
+            $trip_res = self::api_request( 'PATCH', '/trips/' . rawurlencode( $trip_uuid ), $trip_payload );
+            if ( is_wp_error( $trip_res ) ) {
+                // Non bloquant : le shuttle_booking est déjà à jour. On note l'avertissement.
+                update_post_meta( $booking_id, '_etb_kymark_trip_patch_error', $trip_res->get_error_message() );
+            } else {
+                delete_post_meta( $booking_id, '_etb_kymark_trip_patch_error' );
+            }
+        }
+
         return array( 'success' => true, 'message' => 'Paiement synchronisé vers Kymark.' );
     }
 
@@ -480,6 +507,47 @@ class ETB_Kymark {
         // Exemple : GET /v1/customers?search={email} puis POST /v1/customers si absent
 
         return $fallback_id;
+    }
+
+    /**
+     * Recherche ou crée un customer Kymark rattaché au passager.
+     * Retourne l'ID du customer (ou '' si échec non bloquant).
+     *
+     * @param array $data   Données de réservation (name, email, phone)
+     * @param array $settings Réglages WP (contient kymark_api_token)
+     * @return string UUID du customer ou ''
+     */
+    public static function get_or_create_customer( $data, $settings ) {
+        $token      = $settings['kymark_api_token'] ?? '';
+        $email      = ! empty( $data['email'] ) ? trim( $data['email'] ) : '';
+        $name       = ! empty( $data['name'] ) ? trim( $data['name'] ) : 'Client';
+        $phone      = ! empty( $data['phone'] ) ? trim( $data['phone'] ) : '';
+        if ( empty( $token ) || empty( $email ) ) {
+            return '';
+        }
+
+        // 1. Recherche par email
+        $search = self::api_request( 'GET', '/customers?search=' . rawurlencode( $email ), array() );
+        if ( ! is_wp_error( $search ) && ! empty( $search['data'] ) && is_array( $search['data'] ) ) {
+            foreach ( $search['data'] as $c ) {
+                if ( ! empty( $c['email'] ) && strcasecmp( $c['email'], $email ) === 0 ) {
+                    return (string) ( $c['id'] ?? '' );
+                }
+            }
+            // Aucun match exact mais des résultats existent : prendre le premier
+            return (string) ( $search['data'][0]['id'] ?? '' );
+        }
+
+        // 2. Création du customer (champs standards — à adapter si l'API exige d'autres noms de champs)
+        $create = self::api_request( 'POST', '/customers', array(
+            'name'  => $name,
+            'email' => $email,
+            'phone' => $phone,
+        ) );
+        if ( is_wp_error( $create ) ) {
+            return '';
+        }
+        return (string) ( $create['data']['id'] ?? $create['id'] ?? '' );
     }
 
     /**
