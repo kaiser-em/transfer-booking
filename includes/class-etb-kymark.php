@@ -180,6 +180,7 @@ class ETB_Kymark {
 
         $api_token = $settings['kymark_api_token'] ?? '';
         $simulate  = ( ! empty( $settings['kymark_simulate'] ) && '1' === $settings['kymark_simulate'] ) || self::SIMULATE;
+        $currency_symbol = ! empty( $settings['currency'] ) ? sanitize_text_field( $settings['currency'] ) : '€';
 
         if ( empty( $api_token ) && ! $simulate ) {
             update_post_meta( $booking_id, '_etb_kymark_status', 'failed' );
@@ -229,6 +230,35 @@ class ETB_Kymark {
         }
         if ( ! empty( $data['cost_center'] ) ) {
             $notes .= "\n🏢 RÉF : " . trim( $data['cost_center'] );
+        }
+
+        // 👶 Sièges bébé / rehausseurs
+        $baby_seat_count   = absint( $data['baby_seat_count'] ?? 0 );
+        $booster_seat_count = absint( $data['booster_seat_count'] ?? 0 );
+        if ( $baby_seat_count > 0 || $booster_seat_count > 0 ) {
+            $seats_parts = array();
+            if ( $baby_seat_count > 0 ) {
+                $seats_parts[] = $baby_seat_count . ' siège(s) bébé';
+            }
+            if ( $booster_seat_count > 0 ) {
+                $seats_parts[] = $booster_seat_count . ' rehausseur(s)';
+            }
+            $notes .= "\n👶 SIÈGES BÉBÉ : " . implode( ', ', $seats_parts );
+        }
+
+        // 🎁 Extras / options sélectionnés (transmis dans les notes opérationnelles)
+        $extra_fees = (array) ( $data['extra_fees'] ?? array() );
+        if ( ! empty( $extra_fees ) ) {
+            $extra_lines = array();
+            foreach ( $extra_fees as $fee ) {
+                if ( ! empty( $fee['active'] ) && ! empty( $fee['category'] ) ) {
+                    $amount = isset( $fee['amount'] ) ? floatval( $fee['amount'] ) : 0;
+                    $extra_lines[] = sprintf( '%s : %s %s', ucfirst( sanitize_text_field( $fee['category'] ) ), number_format( $amount, 2 ), $currency_symbol );
+                }
+            }
+            if ( ! empty( $extra_lines ) ) {
+                $notes .= "\n🎁 EXTRAS : " . implode( ', ', $extra_lines );
+            }
         }
 
         // 6. Résolution véhicule WP → véhicule Kymark (type de course)
@@ -292,6 +322,12 @@ class ETB_Kymark {
         );
         if ( ! empty( $vehicle_type ) ) {
             $trip_payload['vehicle_type'] = $vehicle_type;
+        }
+
+        // 💰 Pourboire transmis à Kymark (champ gratuity sur /v1/trips)
+        $tip_amount_val = ! empty( $data['tip_amount'] ) ? floatval( $data['tip_amount'] ) : 0.0;
+        if ( $tip_amount_val > 0 ) {
+            $trip_payload['gratuity'] = (float) round( $tip_amount_val, 2 );
         }
 
         // 8bis. Customer Kymark rattaché au passager (pour que le nom apparaisse sur le trip)
