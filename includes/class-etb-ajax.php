@@ -343,6 +343,29 @@ class ETB_Ajax {
         }
 
         $settings = get_option( 'etb_general_settings', array() );
+        $active_dispatcher = $settings['active_dispatcher'] ?? 'none';
+
+        // ─── Branche Kymark : tarifs de transfert depuis l'API Kymark ───
+        // Zones tarifaires (polygones) + routes A→B par pricing group. Cache 6 h :
+        // les visiteurs ne consomment aucun crédit Kymark.
+        if ( 'kymark' === $active_dispatcher ) {
+            if ( ! class_exists( 'ETB_Kymark' ) ) {
+                wp_send_json_error( array( 'message' => 'Module Kymark indisponible.' ) );
+            }
+
+            $quote = ETB_Kymark::get_transfer_quote( $from_lat, $from_lng, $to_lat, $to_lng );
+            if ( is_wp_error( $quote ) ) {
+                wp_send_json_error( array( 'message' => 'Erreur de connexion à Kymark : ' . $quote->get_error_message() ) );
+            }
+
+            wp_send_json_success( array(
+                'dispatcher' => 'kymark',
+                'zone_found' => ! empty( $quote['zone_found'] ),
+                'vehicles'   => $quote['vehicles'],
+            ) );
+        }
+
+        // ─── Branche LimoExpress : matrice de pricing historique (inchangée) ───
         $token    = $settings['limo_api_token'] ?? '';
         
         if ( empty( $token ) ) {

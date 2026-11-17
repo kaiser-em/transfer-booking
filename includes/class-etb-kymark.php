@@ -23,6 +23,19 @@ class ETB_Kymark {
     const API_ENDPOINT = 'https://api.kymark.app/functions/v1/public-api/v1/shuttle_bookings';
 
     /**
+     * Base de l'API publique Kymark (toutes les ressources : pricing_zones,
+     * zone_pricing_routes, vehicles, trips, shuttle_bookings...)
+     */
+    const API_BASE = 'https://api.kymark.app/functions/v1/public-api/v1';
+
+    /**
+     * Durée du cache des listes de pricing (zones, routes tarifaires, véhicules).
+     * 6 h : les données ne changent que quand la config Kymark est modifiée,
+     * et chaque refresh coûte 3 crédits GET (1 par ressource).
+     */
+    const CACHE_TTL = 6 * HOUR_IN_SECONDS;
+
+    /**
      * Mode simulation : si true, aucune requête HTTP n'est envoyée à Kymark.
      * À passer à false une fois les vrais endpoints validés.
      */
@@ -52,6 +65,9 @@ class ETB_Kymark {
             delete_transient( 'etb_kymark_classes_cache' );
             delete_transient( 'etb_kymark_types_cache' );
             delete_transient( 'etb_kymark_statuses_cache' );
+
+            // Purge du cache pricing (zones / routes / véhicules)
+            self::refresh_pricing_cache();
         }
         return $new_input;
     }
@@ -63,6 +79,23 @@ class ETB_Kymark {
         if ( empty( $options['active_dispatcher'] ) || 'kymark' !== $options['active_dispatcher'] ) {
             return;
         }
+
+        // Bouton « Rafraîchir les données Kymark » (3 crédits GET : zones + routes + véhicules)
+        $kymark_refreshed = false;
+        $kymark_refresh_error = '';
+        if ( ! empty( $_GET['refresh_kymark'] ) ) {
+            $refresh_nonce = isset( $_GET['_wpnonce'] ) ? sanitize_text_field( wp_unslash( $_GET['_wpnonce'] ) ) : '';
+            if ( wp_verify_nonce( $refresh_nonce, 'etb_refresh_kymark' ) ) {
+                self::refresh_pricing_cache();
+                $zones_check = self::get_zones();
+                if ( is_wp_error( $zones_check ) ) {
+                    $kymark_refresh_error = $zones_check->get_error_message();
+                } else {
+                    $kymark_refreshed = true;
+                }
+            }
+        }
+        $kymark_refresh_url = wp_nonce_url( add_query_arg( 'refresh_kymark', '1' ), 'etb_refresh_kymark' );
         ?>
         <tr class="etb-dispatcher-row kymark-row">
             <th scope="row" colspan="2">
@@ -71,6 +104,20 @@ class ETB_Kymark {
                     <p style="margin: 0; font-size: 13px;">Module connecté. Renseignez votre clé API depuis le dashboard admin Kymark.</p>
                 </div>
             </th>
+        </tr>
+        <tr class="etb-dispatcher-row kymark-row">
+            <th scope="row">Données de tarification</th>
+            <td>
+                <?php if ( $kymark_refreshed ) : ?>
+                    <p style="color: #166534; margin-top: 0;">✅ Cache Kymark rafraîchi (zones, routes tarifaires, véhicules).</p>
+                <?php elseif ( ! empty( $kymark_refresh_error ) ) : ?>
+                    <p style="color: #991b1b; margin-top: 0;">⚠️ Erreur Kymark : <?php echo esc_html( $kymark_refresh_error ); ?></p>
+                <?php endif; ?>
+                <a href="<?php echo esc_url( $kymark_refresh_url ); ?>" class="button button-secondary">
+                    🔄 Rafraîchir les données Kymark
+                </a>
+                <p class="description">Recharge les zones tarifaires, les routes A→B et les véhicules depuis l'API Kymark. Coût : 3 crédits GET (1 par ressource). Cache valable 6 h — les visiteurs du site ne consomment aucun crédit.</p>
+            </td>
         </tr>
         <tr class="etb-dispatcher-row kymark-row">
             <th scope="row">Clé API Kymark</th>
@@ -369,5 +416,235 @@ class ETB_Kymark {
         }
         set_transient( 'etb_kymark_statuses_cache', array(), HOUR_IN_SECONDS );
         return array();
+    }
+
+    /* ════════════════════════════════════════════════════════════════════
+     *  MODULE PRICING — tarifs de transfert A→B depuis l'API Kymark
+     *
+     *  Modèle de données Kymark (confirmé par l'API réelle) :
+     *   - /v1/pricing_zones       : zones géographiques avec polygones (zone_data.polygon)
+     *   - /v1/zone_pricing_routes : prix par (pricing_group_id, from_zone_id, to_zone_id)
+     *   - /v1/vehicles            : véhicules, chacun lié à un pricing_group_id
+     *
+     *  Une adresse (lat/lng) → zone par point-dans-polygone → prix de la route
+     *  pour le pricing group du véhicule. Aucun calcul local : les prix viennent
+     *  exclusivement de Kymark, toujours synchronisés.
+     * ════════════════════════════════════════════════════════════════════ */
+
+    /**
+     * Requête GET paginée sur une ressource Kymark (1 crédit par page).
+     *
+     * @param string $resource Ex: 'pricing_zones', 'zone_pricing_routes', 'vehicles'
+     * @return array|WP_Error  Lignes brutes ou erreur
+     */
+    private static function api_list_all( $resource ) {
+        $settings = get_option( 'etb_general_settings', array() );
+        $token    = $settings['kymark_api_token'] ?? '';
+        if ( empty( $token ) ) {
+            return new WP_Error( 'etb_kymark_no_token', 'Clé API Kymark manquante dans les réglages.' );
+        }
+
+        $all  = array();
+        $page = 1;
+        do {
+            $response = wp_remote_get( self::API_BASE . '/' . $resource . '?page=' . $page . '&per_page=100', array(
+                'headers' => array(
+                    'Accept'    => 'application/json',
+                    'X-API-Key' => $token,
+                ),
+                'timeout' => 15,
+            ) );
+
+            if ( is_wp_error( $response ) ) {
+                return $response;
+            }
+
+            $status_code = wp_remote_retrieve_response_code( $response );
+            $raw_body    = wp_remote_retrieve_body( $response );
+            $body        = json_decode( $raw_body, true );
+
+            if ( $status_code < 200 || $status_code >= 300 ) {
+                $msg = '';
+                if ( ! empty( $body['error'] ) ) {
+                    $msg = $body['error'];
+                } elseif ( ! empty( $body['message'] ) ) {
+                    $msg = $body['message'];
+                }
+                return new WP_Error( 'etb_kymark_api', 'HTTP ' . $status_code . ( $msg ? ' : ' . $msg : '' ) );
+            }
+
+            $rows = isset( $body['data'] ) && is_array( $body['data'] ) ? $body['data'] : array();
+            foreach ( $rows as $row ) {
+                $all[] = $row;
+            }
+            $page++;
+        } while ( count( $rows ) >= 100 && $page <= 20 );
+
+        return $all;
+    }
+
+    /**
+     * Cache générique pour les listes de pricing (6 h)
+     *
+     * @param string $transient Clé du transient
+     * @param string $resource  Ressource Kymark
+     * @param bool   $force_refresh Forcer le re-fetch (bouton Rafraîchir)
+     * @return array|WP_Error
+     */
+    private static function fetch_list_cached( $transient, $resource, $force_refresh = false ) {
+        if ( ! $force_refresh ) {
+            $cached = get_transient( $transient );
+            if ( false !== $cached && is_array( $cached ) ) {
+                return $cached;
+            }
+        }
+
+        $items = self::api_list_all( $resource );
+        if ( is_wp_error( $items ) ) {
+            return $items;
+        }
+
+        set_transient( $transient, $items, self::CACHE_TTL );
+        return $items;
+    }
+
+    /** Zones tarifaires Kymark (polygones lat/lng) — cache 6 h */
+    public static function get_zones( $force_refresh = false ) {
+        return self::fetch_list_cached( 'etb_kymark_zones_cache', 'pricing_zones', $force_refresh );
+    }
+
+    /** Routes tarifaires A→B par pricing group — cache 6 h */
+    public static function get_routes( $force_refresh = false ) {
+        return self::fetch_list_cached( 'etb_kymark_routes_cache', 'zone_pricing_routes', $force_refresh );
+    }
+
+    /** Véhicules Kymark (liés à un pricing group) — cache 6 h */
+    public static function get_vehicles( $force_refresh = false ) {
+        return self::fetch_list_cached( 'etb_kymark_vehicles_cache', 'vehicles', $force_refresh );
+    }
+
+    /** Purge manuelle du cache pricing (bouton dans les réglages) */
+    public static function refresh_pricing_cache() {
+        delete_transient( 'etb_kymark_zones_cache' );
+        delete_transient( 'etb_kymark_routes_cache' );
+        delete_transient( 'etb_kymark_vehicles_cache' );
+    }
+
+    /**
+     * Test point-dans-polygone (ray casting) sur un polygone Kymark
+     * polygon = [ { lat, lng }, ... ]
+     */
+    private static function point_in_polygon( $lat, $lng, $polygon ) {
+        if ( empty( $polygon ) || ! is_array( $polygon ) ) {
+            return false;
+        }
+        $inside = false;
+        $n      = count( $polygon );
+        for ( $i = 0, $j = $n - 1; $i < $n; $j = $i++ ) {
+            $lat_i = (float) $polygon[ $i ]['lat'];
+            $lng_i = (float) $polygon[ $i ]['lng'];
+            $lat_j = (float) $polygon[ $j ]['lat'];
+            $lng_j = (float) $polygon[ $j ]['lng'];
+
+            if ( ( ( $lat_i > $lat ) !== ( $lat_j > $lat ) ) &&
+                 ( $lng < ( $lng_j - $lng_i ) * ( $lat - $lat_i ) / ( $lat_j - $lat_i ) + $lng_i ) ) {
+                $inside = ! $inside;
+            }
+        }
+        return $inside;
+    }
+
+    /**
+     * Trouve la zone Kymark contenant un point (lat/lng)
+     *
+     * @return array|null La zone (id, name...) ou null si hors zone
+     */
+    public static function resolve_zone( $lat, $lng, $zones ) {
+        if ( ! is_array( $zones ) ) {
+            return null;
+        }
+        foreach ( $zones as $zone ) {
+            $zone_data = isset( $zone['zone_data'] ) && is_array( $zone['zone_data'] ) ? $zone['zone_data'] : array();
+            $polygon   = isset( $zone_data['polygon'] ) && is_array( $zone_data['polygon'] ) ? $zone_data['polygon'] : array();
+            if ( self::point_in_polygon( (float) $lat, (float) $lng, $polygon ) ) {
+                return $zone;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Tarifs de transfert A→B pour tous les véhicules Kymark.
+     *
+     * @param float $from_lat / $from_lng / $to_lat / $to_lng
+     * @return array {
+     *     zone_found: bool — false si un point est hors des zones Kymark,
+     *     from_zone / to_zone: noms des zones résolues,
+     *     vehicles: [ { kymark_vehicle_id, name, capacity, type, price }, ... ] (uniquement les véhicules tarifés)
+     * }
+     * @return WP_Error en cas d'échec API
+     */
+    public static function get_transfer_quote( $from_lat, $from_lng, $to_lat, $to_lng ) {
+        $zones    = self::get_zones();
+        if ( is_wp_error( $zones ) ) {
+            return $zones;
+        }
+        $routes   = self::get_routes();
+        if ( is_wp_error( $routes ) ) {
+            return $routes;
+        }
+        $vehicles = self::get_vehicles();
+        if ( is_wp_error( $vehicles ) ) {
+            return $vehicles;
+        }
+
+        $result = array(
+            'zone_found' => false,
+            'from_zone'  => '',
+            'to_zone'    => '',
+            'vehicles'   => array(),
+        );
+
+        $from_zone = self::resolve_zone( $from_lat, $from_lng, $zones );
+        $to_zone   = self::resolve_zone( $to_lat, $to_lng, $zones );
+        if ( empty( $from_zone ) || empty( $to_zone ) ) {
+            return $result; // Hors zone → l'appelant bascule en mode Devis / Upon Request
+        }
+
+        $result['zone_found'] = true;
+        $result['from_zone']  = $from_zone['name'] ?? '';
+        $result['to_zone']    = $to_zone['name'] ?? '';
+
+        // Prix par pricing group pour la route (from_zone → to_zone)
+        $prices_by_group = array();
+        foreach ( $routes as $route ) {
+            if ( ( $route['from_zone_id'] ?? '' ) === $from_zone['id'] && ( $route['to_zone_id'] ?? '' ) === $to_zone['id'] ) {
+                $group_id = $route['pricing_group_id'] ?? '';
+                $price    = floatval( $route['price'] ?? 0 );
+                if ( $group_id && $price > 0 ) {
+                    $prices_by_group[ $group_id ] = $price;
+                }
+            }
+        }
+
+        // Véhicules disponibles dont le pricing group a un tarif pour cette route
+        foreach ( $vehicles as $vehicle ) {
+            if ( strtolower( (string) ( $vehicle['status'] ?? '' ) ) !== 'available' ) {
+                continue;
+            }
+            $group_id = $vehicle['pricing_group_id'] ?? '';
+            if ( ! $group_id || ! isset( $prices_by_group[ $group_id ] ) ) {
+                continue;
+            }
+            $result['vehicles'][] = array(
+                'kymark_vehicle_id' => $vehicle['id'] ?? '',
+                'name'              => $vehicle['name'] ?? '',
+                'capacity'          => intval( $vehicle['capacity'] ?? 0 ),
+                'type'              => $vehicle['type'] ?? '',
+                'price'             => $prices_by_group[ $group_id ],
+            );
+        }
+
+        return $result;
     }
 }

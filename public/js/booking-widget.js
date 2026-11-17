@@ -1273,6 +1273,68 @@
                     }
                 });
 
+                // ═══ BRANCHE KYMARK : tarifs depuis les zones/routes de l'API Kymark ═══
+                if (res.success && res.data.dispatcher === 'kymark') {
+                    if (!res.data.zone_found) { triggerCustomQuoteMode(); return; }
+                    let kymarkCount = 0;
+                    (res.data.vehicles || []).forEach(item => {
+                        if (!item || !item.kymark_vehicle_id) return;
+                        const targetCard = quickRoot.querySelector('[data-kymark-vehicle-id="' + String(item.kymark_vehicle_id) + '"]');
+                        if (!targetCard) return;
+                        const kymarkPrice = Math.round(item.price || 0);
+                        const priceBox  = targetCard.querySelector('.etb-quick-price-display');
+                        const detailBox = targetCard.querySelector('.etb-quick-price-detail');
+                        const selBtn    = targetCard.querySelector('.etb-quick-select-btn');
+                        const allInclEl = targetCard.querySelector('.etb-quick-all-inclusive');
+                        const isTransferQuoteOnly = targetCard.getAttribute('data-transfer-quote-only') === '1';
+
+                        if (isTransferQuoteOnly) {
+                            // Véhicule marqué « Upon Request » : le prix Kymark reste indicatif
+                            targetCard.dataset.calculatedPrice = kymarkPrice > 0 ? kymarkPrice : 'Custom Quote';
+                            targetCard.dataset.isQuote = '0';
+                            targetCard.dataset.isUponRequest = '1';
+                            if (priceBox) {
+                                priceBox.classList.add('is-upon-request');
+                                let priceHtml = '';
+                                if (kymarkPrice > 0) {
+                                    priceHtml = `<span class="etb-quick-amount">${kymarkPrice}</span> <span class="etb-quick-currency">${currency}</span>`;
+                                }
+                                priceHtml += ` <span class="etb-quick-quote-badge" style="vertical-align: middle; margin-left: 6px;">${etbT('Upon Request')}</span>`;
+                                priceBox.innerHTML = priceHtml;
+                            }
+                            if (detailBox) {
+                                detailBox.innerHTML = etbT('Price is indicative. Select to confirm availability & final quote.');
+                                detailBox.style.display = 'block';
+                            }
+                            if (allInclEl) allInclEl.style.display = 'none';
+                            if (selBtn) selBtn.textContent = etbT('Request Quote');
+                        } else if (kymarkPrice > 0) {
+                            targetCard.dataset.calculatedPrice = kymarkPrice;
+                            targetCard.dataset.isQuote = '0';
+                            targetCard.dataset.isUponRequest = '0';
+                            if (priceBox) {
+                                priceBox.classList.remove('is-upon-request');
+                                priceBox.innerHTML = `<span class="etb-quick-amount">${kymarkPrice}</span> <span class="etb-quick-currency">${currency}</span> <span class="etb-quick-all-inclusive">${etbT('All inclusive')}</span>`;
+                            }
+                            if (detailBox) {
+                                detailBox.style.display = 'none';
+                                detailBox.innerHTML = '';
+                            }
+                            if (selBtn) selBtn.textContent = etbT('Select');
+                            if (allInclEl) allInclEl.style.display = 'flex';
+                        } else {
+                            // Pas de tarif Kymark pour cette route → Devis
+                            triggerCustomQuoteMode();
+                            return;
+                        }
+                        targetCard.style.display = 'flex';
+                        targetCard.classList.remove('etb-hidden');
+                        kymarkCount++;
+                    });
+                    if (kymarkCount === 0) triggerCustomQuoteMode();
+                    return;
+                }
+
                 if (res.success && res.data.pricing_data && res.data.pricing_data.length > 0) {
                     const pricingData = res.data.pricing_data;
                     let availableCarsCount = 0;
@@ -1475,6 +1537,87 @@
                     getPriceBtn.disabled = false;
                     getPriceBtn.classList.remove('etb-loading-glow'); // Éteint le faisceau
                     getPriceBtn.innerHTML = originalBtnText;
+
+                    // ═══ BRANCHE KYMARK : tarifs depuis les zones/routes de l'API Kymark ═══
+                    if (res.success && res.data.dispatcher === 'kymark') {
+                        if (!res.data.zone_found) { triggerCustomQuoteMode(); return; }
+                        var kymarkCount = 0;
+
+                        // 1. On cache toutes les cartes et on nettoie
+                        carCards.forEach(c => {
+                            c.style.display = 'none';
+                            c.classList.remove('selected');
+                            var kmInfo = c.querySelector('.etb-quick-km-info');
+                            if (kmInfo) {
+                                kmInfo.textContent = '';
+                                kmInfo.classList.remove('is-visible');
+                            }
+                        });
+
+                        // 2. Boucle sur les véhicules Kymark tarifés
+                        (res.data.vehicles || []).forEach(item => {
+                            if (!item || !item.kymark_vehicle_id) return;
+                            var targetCard = quickRoot.querySelector('[data-kymark-vehicle-id="' + String(item.kymark_vehicle_id) + '"]');
+                            if (!targetCard) return;
+                            var kymarkPrice = Math.round(item.price || 0);
+                            var priceBox  = targetCard.querySelector('.etb-quick-price-display');
+                            var detailBox = targetCard.querySelector('.etb-quick-price-detail');
+                            var selBtn    = targetCard.querySelector('.etb-quick-select-btn');
+                            var allInclEl = targetCard.querySelector('.etb-quick-all-inclusive');
+                            var isTransferQuoteOnly = targetCard.getAttribute('data-transfer-quote-only') === '1';
+
+                            if (isTransferQuoteOnly) {
+                                targetCard.dataset.calculatedPrice = kymarkPrice > 0 ? kymarkPrice : 'Custom Quote';
+                                targetCard.dataset.isQuote = '0';
+                                targetCard.dataset.isUponRequest = '1';
+                                if (priceBox) {
+                                    priceBox.classList.add('is-upon-request');
+                                    var priceHtml = '';
+                                    if (kymarkPrice > 0) {
+                                        priceHtml = '<span class="etb-quick-amount">' + kymarkPrice + '</span> <span class="etb-quick-currency">' + currency + '</span>';
+                                    }
+                                    priceHtml += ' <span class="etb-quick-quote-badge" style="vertical-align: middle; margin-left: 6px;">' + etbT('Upon Request') + '</span>';
+                                    priceBox.innerHTML = priceHtml;
+                                }
+                                if (detailBox) {
+                                    detailBox.innerHTML = etbT('Price is indicative. Select to confirm availability & final quote.');
+                                    detailBox.style.display = 'block';
+                                }
+                                if (allInclEl) allInclEl.style.display = 'none';
+                                if (selBtn) selBtn.textContent = etbT('Request Quote');
+                            } else if (kymarkPrice > 0) {
+                                targetCard.dataset.calculatedPrice = kymarkPrice;
+                                targetCard.dataset.isQuote = '0';
+                                targetCard.dataset.isUponRequest = '0';
+                                if (priceBox) {
+                                    priceBox.classList.remove('is-upon-request');
+                                    priceBox.innerHTML = '<span class="etb-quick-amount">' + kymarkPrice + '</span> <span class="etb-quick-currency">' + currency + '</span> <span class="etb-quick-all-inclusive">' + etbT('All inclusive') + '</span>';
+                                }
+                                if (detailBox) {
+                                    detailBox.style.display = 'none';
+                                    detailBox.innerHTML = '';
+                                }
+                                if (selBtn) selBtn.textContent = etbT('Select');
+                                if (allInclEl) allInclEl.style.display = 'flex';
+                            } else {
+                                triggerCustomQuoteMode();
+                                return;
+                            }
+                            targetCard.style.display = 'flex';
+                            targetCard.classList.remove('selected', 'etb-hidden');
+                            kymarkCount++;
+                        });
+
+                        if (kymarkCount > 0) {
+                            isQuoteMode = false;
+                            if (quoteNoticeEl) quoteNoticeEl.classList.remove('is-visible');
+                            if (whatsappBtn) whatsappBtn.classList.remove('is-visible');
+                            showFleetSection();
+                        } else {
+                            triggerCustomQuoteMode();
+                        }
+                        return;
+                    }
 
                     if (res.success && res.data.pricing_data && res.data.pricing_data.length > 0) {
                         var pricingData = res.data.pricing_data;

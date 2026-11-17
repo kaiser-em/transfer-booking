@@ -187,6 +187,43 @@ class ETB_Meta_Manager {
                     <?php endif; ?>
                 </p>
                 <hr style="margin: 15px 0;">
+            <?php elseif ( 'kymark' === $active_dispatcher ) :
+                // Affichage UNIQUEMENT si Kymark est sélectionné dans les Réglages
+                $kymark_vehicle_id_meta = get_post_meta( $post->ID, '_etb_kymark_vehicle_id', true );
+                $kymark_force_refresh = false;
+                if ( ! empty( $_GET['refresh_kymark'] ) ) {
+                    $kymark_refresh_nonce = isset( $_GET['_wpnonce'] ) ? sanitize_text_field( wp_unslash( $_GET['_wpnonce'] ) ) : '';
+                    $kymark_force_refresh = (bool) wp_verify_nonce( $kymark_refresh_nonce, 'etb_refresh_kymark' );
+                }
+                $kymark_vehicles = class_exists( 'ETB_Kymark' ) ? ETB_Kymark::get_vehicles( $kymark_force_refresh ) : array();
+                $kymark_refresh_url = wp_nonce_url( add_query_arg( 'refresh_kymark', '1' ), 'etb_refresh_kymark' );
+            ?>
+                <hr style="margin: 15px 0;">
+                <p>
+                    <label><strong>🚙 Véhicule Kymark :</strong></label><br>
+                    <?php if ( is_wp_error( $kymark_vehicles ) || empty( $kymark_vehicles ) ) : ?>
+                        <input type="text" name="etb_kymark_vehicle_id" value="<?php echo esc_attr( $kymark_vehicle_id_meta ); ?>" class="widefat" placeholder="Ex: 04288fa9-057b-4fe6-bd07-12e6eaaf5540">
+                        <span class="description">
+                            <?php echo is_wp_error( $kymark_vehicles ) ? esc_html( 'Erreur Kymark : ' . $kymark_vehicles->get_error_message() ) : 'Saisissez la clé API Kymark dans les Réglages pour charger automatiquement vos véhicules.'; ?>
+                        </span>
+                    <?php else : ?>
+                        <select name="etb_kymark_vehicle_id" class="widefat" style="margin-top: 5px;">
+                            <option value="">-- Aucune liaison Kymark --</option>
+                            <?php foreach ( $kymark_vehicles as $km_v ) : ?>
+                                <option value="<?php echo esc_attr( $km_v['id'] ?? '' ); ?>" <?php selected( $kymark_vehicle_id_meta, $km_v['id'] ?? '' ); ?>>
+                                    🚙 <?php echo esc_html( $km_v['name'] ?? '(sans nom)' ); ?> — <?php echo esc_html( $km_v['capacity'] ?? '?' ); ?> pax
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                        <span style="display: block; margin-top: 6px;">
+                            <a href="<?php echo esc_url( $kymark_refresh_url ); ?>" class="button button-small" style="vertical-align: middle;">
+                                🔄 Rafraîchir la liste Kymark
+                            </a>
+                            <span class="description" style="color: #166534; margin-left: 6px;">Liste en cache (6 h). Le prix du trajet vient du véhicule Kymark lié.</span>
+                        </span>
+                    <?php endif; ?>
+                </p>
+                <hr style="margin: 15px 0;">
             <?php endif; ?>
             
             <p>
@@ -708,6 +745,10 @@ class ETB_Meta_Manager {
                 // Sauvegarde de l'ID LimoExpress
                 $limo_class_id = isset( $_POST['etb_limo_class_id'] ) ? sanitize_text_field( trim( $_POST['etb_limo_class_id'] ) ) : '';
                 update_post_meta( $post_id, '_etb_limo_class_id', $limo_class_id );
+
+                // Sauvegarde de l'ID Kymark
+                $kymark_vehicle_id = isset( $_POST['etb_kymark_vehicle_id'] ) ? sanitize_text_field( trim( $_POST['etb_kymark_vehicle_id'] ) ) : '';
+                update_post_meta( $post_id, '_etb_kymark_vehicle_id', $kymark_vehicle_id );
                 
                 $allowed_extras = array();
                 if ( isset( $_POST['etb_allowed_extras'] ) && is_array( $_POST['etb_allowed_extras'] ) ) {

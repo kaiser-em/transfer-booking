@@ -227,6 +227,7 @@ $now_time = '';
                 $max_bag       = get_post_meta( $v->ID, '_etb_max_baggage', true ) ?: 0;
                 // 💡 NOUVEAU : On force en minuscule pour matcher avec l'API LimoExpress
                 $limo_class_id = strtolower( trim( get_post_meta( $v->ID, '_etb_limo_class_id', true ) ) );
+                $kymark_vehicle_id = trim( get_post_meta( $v->ID, '_etb_kymark_vehicle_id', true ) );
                 $img_url       = get_the_post_thumbnail_url( $v->ID, 'full' ) ?: ( defined('ETB_URL') ? ETB_URL . 'public/images/default-car.png' : '' );
                 $hover_img     = get_post_meta( $v->ID, '_etb_hover_image', true );
                 $transfer_quote_only = get_post_meta( $v->ID, '_etb_transfer_quote_only', true );
@@ -235,7 +236,8 @@ $now_time = '';
                 <div class="etb-quick-car-item" 
                      id="limo-car-<?php echo esc_attr( $limo_class_id ); ?>" 
                       data-limo-class-id="<?php echo esc_attr( $limo_class_id ); ?>"
-                     data-id="<?php echo esc_attr( $v->ID ); ?>" 
+                      data-kymark-vehicle-id="<?php echo esc_attr( $kymark_vehicle_id ); ?>"
+                      data-id="<?php echo esc_attr( $v->ID ); ?>" 
                      data-min-hours="<?php echo esc_attr( $min_hours ); ?>"
                      data-hourly-rate="<?php echo esc_attr( $hourly_rate ); ?>" 
                      data-pack-10h="<?php echo esc_attr( $pack_10h ); ?>"
