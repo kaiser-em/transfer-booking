@@ -1130,11 +1130,11 @@ html, body {
     fill: #b3532b !important;
 }
 
-/* Summary specs : icônes en #b3532b (tous thèmes) */
+/* Summary specs : icônes héritent de la couleur du texte (currentcolor) */
 .etb-chk-summary-specs svg,
 .etb-chk-summary-specs path {
-    color: #b3532b !important;
-    fill: #b3532b !important;
+    color: currentcolor !important;
+    fill: currentcolor !important;
 }
 
 /* ==========================================================================
