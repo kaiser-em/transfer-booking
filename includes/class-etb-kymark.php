@@ -1456,41 +1456,112 @@ class ETB_Kymark {
      * Met à jour une préférence de notification Kymark.
      * PATCH /v1/notification_preferences/{id}
      *
-     * Les champs envoyés sont ceux retournés par GET (pas de devinage).
+     * Récupère d'abord l'objet complet via GET, puis envoie un PATCH avec
+     * l'objet complet où seul le champ d'activation est inversé (pas de
+     * devinette sur les noms de champs).
      */
-    public static function update_notification_preference( $id, $data ) {
-        $settings = get_option( 'etb_general_settings', array() );
-        $token    = $settings['kymark_api_token'] ?? '';
-        if ( empty( $token ) ) {
-            return new WP_Error( 'etb_kymark_no_token', 'Clé API Kymark manquante.' );
-        }
-
-        $response = self::api_request( 'PATCH', '/notification_preferences/' . rawurlencode( (string) $id ), $data );
-        if ( is_wp_error( $response ) ) {
-            return $response;
-        }
-
-        delete_transient( self::NOTIF_CACHE_KEY );
-        return $response;
+    public static function update_notification_preference( $id, $enabled ) {
+        return self::update_kymark_resource_bool( 'notification_preferences', $id, $enabled, self::NOTIF_CACHE_KEY );
     }
 
     /**
      * Met à jour une automatisation email Kymark.
      * PATCH /v1/email_automations/{id}
      */
-    public static function update_email_automation( $id, $data ) {
+    public static function update_email_automation( $id, $enabled ) {
+        return self::update_kymark_resource_bool( 'email_automations', $id, $enabled, self::EMAIL_AUTO_CACHE_KEY );
+    }
+
+    /**
+     * Helper générique : GET la liste, trouve l'objet par id, inverse son
+     * champ booléen d'activation, puis PATCH avec l'objet complet.
+     *
+     * @param string $resource   Ressource API (ex: 'notification_preferences')
+     * @param string $id         ID de l'objet à mettre à jour
+     * @param bool   $enabled    Nouvelle valeur d'activation
+     * @param string $cache_key  Clé de transient à purger après succès
+     * @return array|WP_Error
+     */
+    private static function update_kymark_resource_bool( $resource, $id, $enabled, $cache_key ) {
         $settings = get_option( 'etb_general_settings', array() );
         $token    = $settings['kymark_api_token'] ?? '';
         if ( empty( $token ) ) {
             return new WP_Error( 'etb_kymark_no_token', 'Clé API Kymark manquante.' );
         }
 
-        $response = self::api_request( 'PATCH', '/email_automations/' . rawurlencode( (string) $id ), $data );
+        // 1. Récupère la liste complète des objets pour connaître la structure exacte.
+        $list = self::api_request( 'GET', '/' . $resource, array() );
+        if ( is_wp_error( $list ) ) {
+            return $list;
+        }
+        $items = isset( $list['data'] ) && is_array( $list['data'] ) ? $list['data'] : array();
+
+        // 2. Trouve l'objet correspondant à l'id.
+        $target = null;
+        foreach ( $items as $item ) {
+            if ( ! is_array( $item ) ) {
+                continue;
+            }
+            if ( (string) ( $item['id'] ?? $item['uuid'] ?? '' ) === (string) $id ) {
+                $target = $item;
+                break;
+            }
+        }
+
+        if ( null === $target ) {
+            return new WP_Error( 'etb_kymark_not_found', 'Objet Kymark introuvable (id: ' . esc_html( $id ) . ').' );
+        }
+
+        // 3. Détecte le champ booléen d'activation (sans deviner : on cherche parmi
+        //    les champs de l'objet qui sont déjà booléens et dont le nom suggère
+        //    une activation).
+        $bool_fields = array();
+        foreach ( $target as $k => $v ) {
+            if ( is_bool( $v ) ) {
+                $bool_fields[] = $k;
+            }
+        }
+
+        $activation_field = null;
+        $preferred        = array( 'enabled', 'is_enabled', 'active', 'is_active', 'status' );
+        foreach ( $preferred as $pf ) {
+            if ( in_array( $pf, $bool_fields, true ) ) {
+                $activation_field = $pf;
+                break;
+            }
+        }
+        if ( null === $activation_field && ! empty( $bool_fields ) ) {
+            $activation_field = $bool_fields[0];
+        }
+
+        if ( null === $activation_field ) {
+            return new WP_Error(
+                'etb_kymark_no_bool_field',
+                "Aucun champ booléen d'activation trouvé dans l'objet Kymark. Réponse brute stockée en option etb_kymark_last_api_response."
+            );
+        }
+
+        // 4. Construit le payload PATCH : l'objet complet, seul le champ d'activation
+        //    est inversé (l'API Kymark conserve les champs omis).
+        $payload = $target;
+        $payload[ $activation_field ] = (bool) $enabled;
+
+        // 5. Envoie le PATCH.
+        $response = self::api_request( 'PATCH', '/' . $resource . '/' . rawurlencode( (string) $id ), $payload );
         if ( is_wp_error( $response ) ) {
+            // Stocke la réponse brute pour débogage (lisible en admin ou via les logs).
+            $debug = array(
+                'resource'    => $resource,
+                'id'          => $id,
+                'activation_field' => $activation_field,
+                'payload'     => $payload,
+                'error'       => $response->get_error_message(),
+            );
+            update_option( 'etb_kymark_last_api_response', $debug );
             return $response;
         }
 
-        delete_transient( self::EMAIL_AUTO_CACHE_KEY );
+        delete_transient( $cache_key );
         return $response;
     }
 
@@ -1516,6 +1587,18 @@ class ETB_Kymark {
         <div class="wrap">
             <h1>Notifications Kymark</h1>
             <p>Configurez les emails envoyés automatiquement par Kymark (création, modification, statut, paiement), exactement comme son widget natif.</p>
+
+            <?php
+            // Bloc de débogage : affiche la dernière réponse brute de l'API Kymark
+            // (utile pour comprendre une erreur 400 sans deviner les champs).
+            $debug = get_option( 'etb_kymark_last_api_response', array() );
+            if ( ! empty( $debug ) ) : ?>
+                <div class="notice notice-error">
+                    <p><strong>Dernière réponse API Kymark (débogage) :</strong></p>
+                    <pre style="background:#f8fafc;border:1px solid #e2e8f0;padding:10px;font-size:12px;max-height:300px;overflow:auto;"><?php echo esc_html( wp_json_encode( $debug, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE ) ); ?></pre>
+                    <p class="description">Si vous voyez une erreur 400, copiez ce contenu et transmettez-le pour ajuster les champs envoyés à l'API.</p>
+                </div>
+            <?php endif; ?>
 
             <h2>Préférences de notification</h2>
             <?php if ( empty( $prefs ) ) : ?>
@@ -1612,12 +1695,10 @@ class ETB_Kymark {
             wp_send_json_error( array( 'message' => 'ID manquant.' ) );
         }
 
-        $data = array( 'enabled' => $enabled );
-
         if ( 'preference' === $type ) {
-            $res = self::update_notification_preference( $id, $data );
+            $res = self::update_notification_preference( $id, $enabled );
         } else {
-            $res = self::update_email_automation( $id, $data );
+            $res = self::update_email_automation( $id, $enabled );
         }
 
         if ( is_wp_error( $res ) ) {
