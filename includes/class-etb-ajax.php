@@ -1904,8 +1904,12 @@ class ETB_Ajax {
             wp_send_json_error( array( 'message' => 'A valid email address is required.' ) );
         }
 
-        // 4. Création du client dans Stripe avec Pays et Téléphone
-        $customer_res = ETB_Stripe::create_customer( $name, $email, $phone, $country );
+        // 4. Création / réutilisation du client Stripe (dédoublonnage par email :
+        //    un seul profil client, celui qui porte la carte enregistrée, pour que
+        //    Kymark retrouve toujours la même fiche et la même carte).
+        $customer_res = class_exists( 'ETB_Stripe' ) && method_exists( 'ETB_Stripe', 'find_or_create_customer' )
+            ? ETB_Stripe::find_or_create_customer( $name, $email, $phone, $country )
+            : ETB_Stripe::create_customer( $name, $email, $phone, $country );
         $customer_id  = '';
         if ( ! is_wp_error( $customer_res ) && ! empty( $customer_res['id'] ) ) {
             $customer_id = $customer_res['id'];
@@ -1926,7 +1930,9 @@ class ETB_Ajax {
         );
 
         // 6. Création du PaymentIntent officiel auprès de Stripe
-        $intent_res = ETB_Stripe::create_payment_intent( $amount, $currency, $customer_id, $metadata, $capture_method );
+        //    $save_card = true : la carte est vaultée sur le customer (off_session)
+        //    pour permettre une surcharge post-course depuis Kymark / le plugin.
+        $intent_res = ETB_Stripe::create_payment_intent( $amount, $currency, $customer_id, $metadata, $capture_method, true );
 
         if ( is_wp_error( $intent_res ) ) {
             wp_send_json_error( array( 'message' => $intent_res->get_error_message() ) );
@@ -2146,6 +2152,28 @@ class ETB_Ajax {
                 $card_brand  = ! empty( $stripe_card['brand'] ) ? sanitize_text_field( $stripe_card['brand'] ) : $card_brand;
                 if ( ! empty( $stripe_card['exp_month'] ) && ! empty( $stripe_card['exp_year'] ) ) {
                     $card_exp = sprintf( '%02d/%02d', $stripe_card['exp_month'], substr( (string) $stripe_card['exp_year'], -2 ) );
+                }
+            }
+
+            // Vault de carte : customer Stripe + méthode de paiement réutilisable
+            // (setup_future_usage = off_session) pour une éventuelle surcharge post-course.
+            if ( is_array( $intent_check ) ) {
+                $stripe_customer_vault = ! empty( $intent_check['customer'] ) ? sanitize_text_field( (string) $intent_check['customer'] ) : '';
+                $stripe_pm_vault       = ! empty( $intent_check['payment_method'] ) ? sanitize_text_field( (string) $intent_check['payment_method'] ) : '';
+                if ( ! empty( $stripe_customer_vault ) ) {
+                    update_post_meta( $booking_id, '_etb_stripe_customer_id', $stripe_customer_vault );
+                }
+                if ( ! empty( $stripe_pm_vault ) ) {
+                    update_post_meta( $booking_id, '_etb_stripe_pm_id', $stripe_pm_vault );
+                }
+
+                // Rattachement explicite + carte par défaut du profil client.
+                // Indispensable pour que Kymark (Stored Cards) considère la carte
+                // comme enregistrée, même si Stripe l'a déjà attachée via
+                // setup_future_usage.
+                if ( ! empty( $stripe_customer_vault ) && ! empty( $stripe_pm_vault ) && class_exists( 'ETB_Stripe' ) ) {
+                    $vault_ok = ETB_Stripe::register_saved_card( $stripe_customer_vault, $stripe_pm_vault );
+                    update_post_meta( $booking_id, '_etb_stripe_card_saved', $vault_ok ? '1' : '0' );
                 }
             }
         }

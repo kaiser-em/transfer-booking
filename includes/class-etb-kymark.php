@@ -485,6 +485,12 @@ class ETB_Kymark {
         $settings = get_option( 'etb_general_settings', array() );
         $simulate = ( ! empty( $settings['kymark_simulate'] ) && '1' === $settings['kymark_simulate'] ) || self::SIMULATE;
 
+        // Devise explicite pour les trip_payments Kymark : sans ce champ, Kymark
+        // applique son défaut base (USD), alors que le site facture en EUR.
+        $kymark_currency_map = array( '€' => 'EUR', '$' => 'USD', '£' => 'GBP', 'CHF' => 'CHF' );
+        $site_currency_sym   = ! empty( $settings['currency'] ) ? trim( (string) $settings['currency'] ) : '€';
+        $kymark_currency     = $kymark_currency_map[ $site_currency_sym ] ?? 'EUR';
+
         if ( $simulate ) {
             update_post_meta( $booking_id, '_etb_kymark_payment_status', 'paid (simulation)' );
             return array( 'success' => true, 'message' => 'Mode simulation : paiement Kymark simulé.' );
@@ -538,6 +544,7 @@ class ETB_Kymark {
 
                 $payment_payload = array(
                     'amount'              => (float) round( $paid_amount, 2 ),
+                    'currency'            => $kymark_currency,
                     'payment_source_name' => 'Stripe',
                     'trip_id'             => (string) $trip_uuid,
                     'notes'               => 'Paiement en ligne via WordPress (Elite Transfer Booking)',

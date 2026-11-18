@@ -142,6 +142,127 @@ class ETB_Stripe {
     }
 
     /**
+     * Recherche les customers Stripe existants pour un email.
+     * Le plugin créait auparavant un customer à chaque paiement, ce qui produisait
+     * des doublons : Kymark (qui résout le client par email) pouvait tomber sur un
+     * profil vide et afficher « no saved card ».
+     *
+     * @return array Liste des customers (vide si aucun ou en cas d'erreur).
+     */
+    private static function search_customers_by_email( $email ) {
+        $email = sanitize_email( $email );
+        if ( empty( $email ) ) {
+            return array();
+        }
+
+        // 1) Search API (indexée, la plus fiable), 2) repli sur la liste filtrée.
+        $query   = "email:'" . str_replace( "'", "\\'", $email ) . "'";
+        $results = self::request( 'customers/search?query=' . rawurlencode( $query ) . '&limit=10', 'GET' );
+
+        if ( is_wp_error( $results ) || empty( $results['data'] ) ) {
+            $results = self::request( 'customers?email=' . rawurlencode( $email ) . '&limit=10', 'GET' );
+        }
+
+        if ( is_wp_error( $results ) || empty( $results['data'] ) ) {
+            return array();
+        }
+
+        return $results['data'];
+    }
+
+    /**
+     * Retourne le customer Stripe à utiliser pour cet email : réutilise un profil
+     * existant (en priorité celui qui possède déjà une carte) au lieu d'en créer un
+     * nouveau à chaque paiement. Zéro régression : comportement identique si aucun
+     * customer n'existe.
+     */
+    public static function find_or_create_customer( $name, $email, $phone = '', $country = '' ) {
+        $existing = self::search_customers_by_email( $email );
+
+        if ( ! empty( $existing ) ) {
+            $newest    = null;
+            $newest_ts = -1;
+            $with_card = null;
+            $with_default = null;
+
+            foreach ( $existing as $customer ) {
+                $ts = (int) ( $customer['created'] ?? 0 );
+                if ( $ts > $newest_ts ) {
+                    $newest_ts = $ts;
+                    $newest    = $customer;
+                }
+                if ( ! empty( $customer['invoice_settings']['default_payment_method'] ) && ! $with_default ) {
+                    $with_default = $customer;
+                }
+            }
+
+            // Priorité : carte par défaut > customer le plus récent ayant une carte
+            // > customer le plus récent. C'est ce profil que Kymark pourra débiter.
+            if ( $with_default ) {
+                return $with_default;
+            }
+
+            if ( $newest ) {
+                $pms = self::request( 'payment_methods?customer=' . rawurlencode( $newest['id'] ) . '&type=card&limit=1', 'GET' );
+                if ( ! is_wp_error( $pms ) && ! empty( $pms['data'] ) ) {
+                    $with_card = $newest;
+                }
+            }
+
+            if ( ! $with_card ) {
+                foreach ( $existing as $customer ) {
+                    if ( ! empty( $customer['invoice_settings']['default_payment_method'] ) ) {
+                        continue;
+                    }
+                    $pms = self::request( 'payment_methods?customer=' . rawurlencode( $customer['id'] ) . '&type=card&limit=1', 'GET' );
+                    if ( ! is_wp_error( $pms ) && ! empty( $pms['data'] ) ) {
+                        $with_card = $customer;
+                        break;
+                    }
+                }
+            }
+
+            if ( $with_card ) {
+                return $with_card;
+            }
+            if ( $newest ) {
+                return $newest;
+            }
+        }
+
+        return self::create_customer( $name, $email, $phone, $country );
+    }
+
+    /**
+     * Rattache explicitement la carte au customer et la définit comme moyen de
+     * paiement par défaut. Certains outils (Kymark) lisent
+     * invoice_settings.default_payment_method plutôt que la liste des cartes.
+     *
+     * @return bool True si la carte est utilisable comme carte enregistrée.
+     */
+    public static function register_saved_card( $customer_id, $pm_id ) {
+        $customer_id = trim( (string) $customer_id );
+        $pm_id       = trim( (string) $pm_id );
+
+        if ( '' === $customer_id || '' === $pm_id ) {
+            return false;
+        }
+
+        // Attachement explicite (idempotent : Stripe renvoie une erreur bénigne si
+        // la carte est déjà rattachée à ce customer, on l'ignore).
+        self::request( 'payment_methods/' . rawurlencode( $pm_id ) . '/attach', 'POST', array(
+            'customer' => $customer_id,
+        ) );
+
+        // Définition comme carte par défaut du profil client.
+        $defaulted = self::request( 'customers/' . rawurlencode( $customer_id ), 'POST', array(
+            'invoice_settings[default_payment_method]' => $pm_id,
+        ) );
+
+        return ! is_wp_error( $defaulted );
+    }
+
+    /**
      * Crée une intention de paiement (PaymentIntent) avec capture différée (Modèle Blacklane)
      *
      * @param float  $amount Montant en euros (ex: 197.00)
@@ -149,8 +270,9 @@ class ETB_Stripe {
      * @param string $customer_id ID client Stripe (ex: 'cus_XXXX')
      * @param array  $metadata Données de traçabilité (Dossier WP, trajet...)
      * @param string $capture_method 'manual' pour pré-autorisation Blacklane, 'automatic' pour débit direct
+     * @param bool   $save_card Vault la carte sur le customer (off_session) pour surcharges ultérieures
      */
-    public static function create_payment_intent( $amount, $currency = 'eur', $customer_id = '', $metadata = array(), $capture_method = 'manual' ) {
+    public static function create_payment_intent( $amount, $currency = 'eur', $customer_id = '', $metadata = array(), $capture_method = 'manual', $save_card = false ) {
         // Stripe attend les montants en centimes d'euro entiers (197.00 € = 19700 centimes)
         $amount_in_cents = round( floatval( $amount ) * 100 );
 
@@ -163,6 +285,12 @@ class ETB_Stripe {
 
         if ( ! empty( $customer_id ) ) {
             $data['customer'] = $customer_id;
+
+            // Vault de la carte : la méthode de paiement reste attachée au customer
+            // et devient réutilisable hors session (surcharge post-course).
+            if ( $save_card ) {
+                $data['setup_future_usage'] = 'off_session';
+            }
         }
 
         if ( ! empty( $metadata ) && is_array( $metadata ) ) {
