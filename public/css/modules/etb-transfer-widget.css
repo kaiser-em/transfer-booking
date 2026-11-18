@@ -915,8 +915,7 @@
     font-size: 9px !important;
     font-weight: 500 !important;
     margin: 0 !important;
-    color: var(--etb-text-secondary, #94a3b8) !important;
-    opacity: 0.85 !important;
+    color: var(--etb-text-secondary, #5d5d5d) !important;
 }
 
 .etb-quick-card-footer--kymark .etb-quick-price-detail {
@@ -1056,7 +1055,7 @@
 .etb-quick-all-inclusive {
     font-size: 11px !important;
     font-weight: 600 !important;
-    color: #94a3b8 !important;
+    color: var(--etb-text-secondary, #5d5d5d) !important;
     margin-top: 4px !important;
     display: flex; /* Sans !important pour permettre le masquage JS */
     align-items: center !important;
@@ -1645,7 +1644,7 @@
     grid-row: 2 !important;
     grid-column: 2 !important;
     font-size: 11px !important;
-    color: #94a3b8 !important;
+    color: var(--etb-text-secondary, #5d5d5d) !important;
     display: block !important;
     white-space: nowrap !important;
     overflow: hidden !important;
@@ -1713,7 +1712,7 @@
 }
 
 [data-etb-theme="light"] button.etb-quick-clear-btn{
-    color: var(--etb-text-muted, #8f8f8f) !important;
+    color: var(--etb-text-secondary, #5d5d5d) !important;
 }
 
 

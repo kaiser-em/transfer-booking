@@ -279,9 +279,9 @@
 
 [data-etb-theme="light"] .etb-chk-field .etb-custom-option.highlighted {
     background: #f1f5f9 !important;
-    color: #e65a15 !important;
+    color: var(--etb-brand-ink, #b45309) !important;
     font-weight: 700 !important;
-    border-left: 3px solid #e65a15 !important;
+    border-left: 3px solid var(--etb-brand-ink, #b45309) !important;
 }
 
 

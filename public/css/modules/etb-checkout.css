@@ -856,7 +856,7 @@ html, body {
 [data-etb-theme="light"] .etb-chk-radio-pill {
     background: var(--etb-bg-surface, #f9f9f9) !important;
     border: 1.5px solid var(--etb-border-main, #e5e5e5) !important;
-    color: var(--etb-text-secondary, #5d5d5d) !important;
+    color: var(--etb-text-primary, #0d0d0d) !important;
 }
 
 [data-etb-theme="light"] .etb-chk-radio-pill:hover {
@@ -894,7 +894,7 @@ html, body {
 [data-etb-theme="light"] .etb-chk-seat-info p,
 [data-etb-theme="light"] .etb-chk-cap-label small,
 [data-etb-theme="light"] .etb-mandate-legal-text {
-    color: var(--etb-text-muted, #8f8f8f) !important;
+    color: var(--etb-text-secondary, #5d5d5d) !important;
 }
 
 /* Boutons +/- de quantité */
@@ -953,7 +953,7 @@ html, body {
 }
 
 [data-etb-theme="light"] .etb-chk-hint {
-    color: var(--etb-text-muted, #8f8f8f) !important;
+    color: var(--etb-text-secondary, #5d5d5d) !important;
 }
 
 /* 4. Étape 2 : Paiement EDEN CAB */
@@ -966,7 +966,7 @@ html, body {
 }
 
 [data-etb-theme="light"] .etb-payment-company-address p {
-    color: var(--etb-text-muted, #8f8f8f) !important;
+    color: var(--etb-text-secondary, #5d5d5d) !important;
 }
 
 [data-etb-theme="light"] .etb-payment-section-title {
@@ -1006,7 +1006,7 @@ html, body {
 
 /* Lignes Pickup, Dropoff, Date */
 [data-etb-theme="light"] .etb-chk-timeline-text small {
-    color: var(--etb-text-muted, #8f8f8f) !important;
+    color: var(--etb-text-secondary, #5d5d5d) !important;
     font-weight: 700 !important;
 }
 
@@ -1021,7 +1021,7 @@ html, body {
 }
 
 [data-etb-theme="light"] .etb-chk-guarantee-line {
-    color: var(--etb-text-secondary, #5d5d5d) !important;
+    color: var(--etb-text-primary, #0d0d0d) !important;
 }
 
 /* Boutons Pourboire (None, 10%, 15%, 20%) */
@@ -1031,7 +1031,7 @@ html, body {
 }
 
 [data-etb-theme="light"] .etb-chk-tip-title {
-    color: var(--etb-text-secondary, #5d5d5d) !important;
+    color: var(--etb-text-primary, #0d0d0d) !important;
 }
 
 
