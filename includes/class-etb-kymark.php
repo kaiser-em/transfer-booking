@@ -56,6 +56,9 @@ class ETB_Kymark {
 
         // AJAX : activer/désactiver une notification Kymark
         add_action( 'wp_ajax_etb_kymark_toggle_notification', array( __CLASS__, 'ajax_toggle_notification' ) );
+
+        // AJAX : créer une automatisation email Kymark
+        add_action( 'wp_ajax_etb_kymark_create_email_automation', array( __CLASS__, 'ajax_create_email_automation' ) );
     }
 
     /**
@@ -1497,6 +1500,33 @@ class ETB_Kymark {
     }
 
     /**
+     * Crée une automatisation email Kymark.
+     * POST /v1/email_automations  avec {"name": "...", "trigger_event": "trip_created"}
+     *
+     * @param string $name          Nom de l'automatisation
+     * @param string $trigger_event Événement déclencheur (ex: trip_created)
+     * @return array|WP_Error
+     */
+    public static function create_email_automation( $name, $trigger_event ) {
+        $settings = get_option( 'etb_general_settings', array() );
+        $token    = $settings['kymark_api_token'] ?? '';
+        if ( empty( $token ) ) {
+            return new WP_Error( 'etb_kymark_no_token', 'Clé API Kymark manquante.' );
+        }
+
+        $response = self::api_request( 'POST', '/email_automations', array(
+            'name'           => $name,
+            'trigger_event'  => $trigger_event,
+        ) );
+        if ( is_wp_error( $response ) ) {
+            return $response;
+        }
+
+        delete_transient( self::EMAIL_AUTO_CACHE_KEY );
+        return $response;
+    }
+
+    /**
      * Enregistre la page d'admin des notifications Kymark.
      */
     public static function register_notification_admin_page() {
@@ -1611,7 +1641,92 @@ class ETB_Kymark {
             });
         });
         </script>
+
+        <h2>Créer une nouvelle automatisation email</h2>
+        <p>Créez une automatisation pour que Kymark envoie un email automatiquement (ex: à chaque création de voyage).</p>
+        <form id="etb-kymark-create-automation" style="margin-top: 10px;">
+            <?php wp_nonce_field( 'etb_kymark_create_automation', 'etb_kymark_create_nonce' ); ?>
+            <table class="form-table">
+                <tr>
+                    <th scope="row">Nom</th>
+                    <td><input type="text" name="name" value="Confirmation de réservation" class="regular-text" required></td>
+                </tr>
+                <tr>
+                    <th scope="row">Événement déclencheur</th>
+                    <td>
+                        <select name="trigger_event" class="regular-text">
+                            <option value="trip_created">Nouveau voyage créé (trip_created)</option>
+                            <option value="before_pickup">Avant la prise en charge (before_pickup)</option>
+                            <option value="after_dropoff">Après le dépose (after_dropoff)</option>
+                            <option value="payment_outstanding">Paiement en attente (payment_outstanding)</option>
+                        </select>
+                        <p class="description">Choisissez "Nouveau voyage créé" pour être notifié à chaque réservation.</p>
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row"></th>
+                    <td>
+                        <button type="submit" class="button button-primary" id="etb-kymark-create-btn">Créer l'automatisation</button>
+                    </td>
+                </tr>
+            </table>
+        </form>
+
+        <div id="etb-kymark-create-result" style="margin-top: 10px;"></div>
+        
+        <script>
+        jQuery(document).ready(function($) {
+            $('#etb-kymark-create-automation').on('submit', function(e) {
+                e.preventDefault();
+                var btn = $('#etb-kymark-create-btn');
+                btn.prop('disabled', true).text('Création...');
+                $('#etb-kymark-create-result').html('');
+
+                $.post(ajaxurl, {
+                    action: 'etb_kymark_create_email_automation',
+                    name: $('input[name="name"]').val(),
+                    trigger_event: $('select[name="trigger_event"]').val(),
+                    nonce: $('#etb_kymark_create_nonce').val()
+                }, function(response) {
+                    btn.prop('disabled', false).text('Créer l\'automatisation');
+                    if (response.success) {
+                        $('#etb-kymark-create-result').html('<div class="updated"><p>' + response.data.message + '</p></div>');
+                        setTimeout(function(){ location.reload(); }, 1500);
+                    } else {
+                        $('#etb-kymark-create-result').html('<div class="error"><p>Erreur : ' + (response.data && response.data.message ? response.data.message : 'inconnue') + '</p></div>');
+                    }
+                });
+            });
+        });
+        </script>
+        </div>
         <?php
+    }
+
+    /**
+     * AJAX handler pour créer une automatisation email Kymark.
+     */
+    public static function ajax_create_email_automation() {
+        check_ajax_referer( 'etb_kymark_create_automation', 'etb_kymark_create_nonce' );
+
+        if ( ! current_user_can( 'manage_options' ) ) {
+            wp_send_json_error( array( 'message' => 'Permission refusée.' ) );
+        }
+
+        $name        = sanitize_text_field( $_POST['name'] ?? '' );
+        $trigger_event = sanitize_text_field( $_POST['trigger_event'] ?? '' );
+
+        if ( empty( $name ) || empty( $trigger_event ) ) {
+            wp_send_json_error( array( 'message' => 'Nom et événement requis.' ) );
+        }
+
+        $res = self::create_email_automation( $name, $trigger_event );
+
+        if ( is_wp_error( $res ) ) {
+            wp_send_json_error( array( 'message' => $res->get_error_message() ) );
+        }
+
+        wp_send_json_success( array( 'message' => 'Automatisation créée avec succès.' ) );
     }
 
     /**
