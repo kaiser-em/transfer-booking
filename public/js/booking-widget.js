@@ -2105,7 +2105,7 @@
 
                         <div class="etb-bar-col2" style="display: flex; flex-direction: column; justify-content: center;">
                             <div class="etb-bar-price">${priceHtml}</div>
-                            ${!isCarQuote ? `<div class="etb-bar-sub" style="color: var(--etb-text-secondary, #94a3b8); font-size: 11px; text-transform: uppercase;">
+                            ${!isCarQuote ? `<div class="etb-bar-sub" style="color: var(--etb-text-secondary, #5d5d5d); font-size: 11px; text-transform: uppercase;">
                                 ${currentMode === 'hourly' ? etbT('Hourly Charter') : etbT('All Inclusive (Fixed rate)')}
                             </div>` : ''}
                         </div>
@@ -2451,7 +2451,9 @@
                         : `<span style="color: var(--etb-accent-gold, #fbac18); font-size: 28px; font-weight: 900; letter-spacing: -0.5px;">${cumulativeTotal.toFixed(0)} <span style="font-size: 18px;">${currency}</span></span>`;
                 }
                 if (subBox) {
-                    subBox.innerHTML = `<span style="color: var(--etb-text-secondary, #94a3b8); font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em;">${etbT('Fixed All-Inclusive Rate')}</span>`;
+                    subBox.innerHTML = !hasCustomQuoteInCart 
+                        ? `<span style="color: var(--etb-text-secondary, #5d5d5d); font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em;">${etbT('Fixed All-Inclusive Rate')}</span>`
+                        : '';
                 }
                 if (kmBox) kmBox.style.display = 'none';
             }

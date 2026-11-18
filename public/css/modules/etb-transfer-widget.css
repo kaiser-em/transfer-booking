@@ -1040,10 +1040,11 @@
     color: var(--etb-text-primary, #e2e8f0) !important;
 }
 
-/* La ligne de majoration garde la couleur normale (text primaire) */
+/* La ligne de majoration garde la couleur normale (text primaire), pas de gras */
 .etb-quick-price-row--surge > span:first-child,
 .etb-quick-price-row--surge > span:last-child {
     color: var(--etb-text-primary, #e2e8f0) !important;
+    font-weight: 400 !important;
 }
 
 .etb-quick-price-detail strong {
