@@ -664,6 +664,11 @@
     background-color: #ffffff !important;
 }
 
+/* Conteneur image : fond blanc en light mode pour qu'il ne laisse pas voir le gris du widget */
+[data-etb-theme="light"] .etb-quick-img-box {
+    background-color: #ffffff !important;
+}
+
 
 
 /* 3. Corps de la carte avec padding aéré */
@@ -1932,7 +1937,7 @@
 
 
 [data-etb-theme="light"] #etb-quick-widget-app {
-    background-color: #f1f1f1 !important;
+    background-color: #ebebeb !important;
     border-radius: 16px !important;
     padding: 16px !important;
 }
