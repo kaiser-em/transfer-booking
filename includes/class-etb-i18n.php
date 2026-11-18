@@ -329,7 +329,7 @@ class ETB_I18n {
             'Please select a vehicle or add at least one trip to your booking.' => 'Veuillez sélectionner un véhicule ou ajouter au moins un trajet à votre réservation.',
             'Please select exact addresses from the suggested list to calculate the route.' => 'Veuillez sélectionner des adresses exactes dans la liste de suggestions pour calculer l\'itinéraire.',
             'Price for %s hours' => 'Prix pour %s heures',
-            'Indicative info Only. Select to confirm availability & Price' => 'Information indicative uniquement. Sélectionnez pour confirmer la disponibilité et le prix.',
+            'Indicative info. Select to confirm availability and pricing.' => 'Information indicative. Sélectionnez pour confirmer la disponibilité et le prix.',
             'Proceed to Payment Now ➔' => 'Procéder au paiement maintenant ➔',
             'Quotation in Progress' => 'Devis en cours',
             'Quote' => 'Devis',

@@ -1277,7 +1277,7 @@
 
                     if (detailEl) {
                         // 💡 CORRECTION : On garde le message "Minimum package" et on ajoute l'info Upon Request
-                        detailEl.innerHTML = minimumNoticeHtml + etbT('Indicative info Only. Select to confirm availability & Price');
+                        detailEl.innerHTML = minimumNoticeHtml + etbT('Indicative info. Select to confirm availability and pricing.');
                         detailEl.style.display = 'block';
                     }
 
@@ -1414,7 +1414,7 @@
                             targetCard.dataset.isUponRequest = '1';
                             renderKymarkPrice(targetCard, item, currency, {
                                 uponRequest: true,
-                                note: etbT('Indicative info Only. Select to confirm availability & Price')
+                                note: etbT('Indicative info. Select to confirm availability and pricing.')
                             });
                             if (selBtn) selBtn.textContent = etbT('Request Quote');
                         } else if (kymarkPrice > 0) {
@@ -1676,7 +1676,7 @@
                                 targetCard.dataset.isUponRequest = '1';
                                 renderKymarkPrice(targetCard, item, currency, {
                                     uponRequest: true,
-                                    note: etbT('Indicative info Only. Select to confirm availability & Price')
+                                    note: etbT('Indicative info. Select to confirm availability and pricing.')
                                 });
                                 if (selBtn) selBtn.textContent = etbT('Request Quote');
                             } else if (kymarkPrice > 0) {
@@ -1771,7 +1771,7 @@
 
                                     var priceDetailEl = targetCard.querySelector('.etb-quick-price-detail');
                                     if (priceDetailEl) {
-                                        priceDetailEl.innerHTML = etbT('Indicative info Only. Select to confirm availability & Price');
+                                        priceDetailEl.innerHTML = etbT('Indicative info. Select to confirm availability and pricing.');
                                         priceDetailEl.style.display = 'block';
                                     }
 
