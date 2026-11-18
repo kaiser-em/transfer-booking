@@ -353,15 +353,25 @@ class ETB_Ajax {
                 wp_send_json_error( array( 'message' => 'Module Kymark indisponible.' ) );
             }
 
-            $quote = ETB_Kymark::get_transfer_quote( $from_lat, $from_lng, $to_lat, $to_lng );
+            $quote = ETB_Kymark::get_transfer_quote(
+                $from_lat,
+                $from_lng,
+                $to_lat,
+                $to_lng,
+                ETB_Kymark::parse_pickup_timestamp(
+                    sanitize_text_field( wp_unslash( $_POST['pickup_date'] ?? '' ) ),
+                    sanitize_text_field( wp_unslash( $_POST['pickup_time'] ?? '' ) )
+                )
+            );
             if ( is_wp_error( $quote ) ) {
                 wp_send_json_error( array( 'message' => 'Erreur de connexion à Kymark : ' . $quote->get_error_message() ) );
             }
 
             wp_send_json_success( array(
-                'dispatcher' => 'kymark',
-                'zone_found' => ! empty( $quote['zone_found'] ),
-                'vehicles'   => $quote['vehicles'],
+                'dispatcher'   => 'kymark',
+                'zone_found'   => ! empty( $quote['zone_found'] ),
+                'surge_active' => ! empty( $quote['surge_active'] ),
+                'vehicles'     => $quote['vehicles'],
             ) );
         }
 
@@ -1508,7 +1518,13 @@ class ETB_Ajax {
             $km_to_lng   = floatval( $trip['dropoff_lng'] ?? $trip['to_lng'] ?? 0 );
 
             if ( $kymark_vehicle_uuid && $km_from_lat && $km_from_lng && $km_to_lat && $km_to_lng ) {
-                $km_quote = ETB_Kymark::get_transfer_quote( $km_from_lat, $km_from_lng, $km_to_lat, $km_to_lng );
+                $km_quote = ETB_Kymark::get_transfer_quote(
+                    $km_from_lat,
+                    $km_from_lng,
+                    $km_to_lat,
+                    $km_to_lng,
+                    ETB_Kymark::parse_pickup_timestamp( $trip['date'] ?? '', $trip['time'] ?? '' )
+                );
                 if ( ! is_wp_error( $km_quote ) && ! empty( $km_quote['zone_found'] ) ) {
                     foreach ( $km_quote['vehicles'] as $km_v ) {
                         if ( ( $km_v['kymark_vehicle_id'] ?? '' ) === $kymark_vehicle_uuid && floatval( $km_v['price'] ?? 0 ) > 0 ) {

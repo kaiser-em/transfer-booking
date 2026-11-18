@@ -1254,6 +1254,10 @@
             formData.append('from_lng', fromLng);
             formData.append('to_lat', toLat);
             formData.append('to_lng', toLng);
+            // Date/heure de prise en charge : nécessaire pour appliquer les
+            // règles de majoration Kymark (surge) au bon moment.
+            formData.append('pickup_date', document.querySelector('#etb-quick-date')?.value || '');
+            formData.append('pickup_time', document.querySelector('#etb-quick-time')?.value || '');
 
             fetch(etbAjax.ajax_url, {
                 method: 'POST',
@@ -1528,6 +1532,10 @@
                 formData.append('from_lng', fromLng);
                 formData.append('to_lat', toLat);
                 formData.append('to_lng', toLng);
+            // Date/heure de prise en charge : nécessaire pour appliquer les
+            // règles de majoration Kymark (surge) au bon moment.
+            formData.append('pickup_date', document.querySelector('#etb-quick-date')?.value || '');
+            formData.append('pickup_time', document.querySelector('#etb-quick-time')?.value || '');
 
                 fetch(etbAjax.ajax_url, {
                     method: 'POST',

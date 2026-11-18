@@ -31,9 +31,12 @@ class ETB_Kymark {
     /**
      * Durée du cache des listes de pricing (zones, routes tarifaires, véhicules).
      * 6 h : les données ne changent que quand la config Kymark est modifiée,
-     * et chaque refresh coûte 3 crédits GET (1 par ressource).
+     * et chaque refresh coûte 5 crédits GET (1 par ressource).
      */
     const CACHE_TTL = 6 * HOUR_IN_SECONDS;
+
+    /** Cache des règles de majoration (surge) et de leurs liens pricing groups. */
+    const SURGE_CACHE_KEY = 'etb_kymark_surge_cache';
 
     /**
      * Mode simulation : si true, aucune requête HTTP n'est envoyée à Kymark.
@@ -80,7 +83,8 @@ class ETB_Kymark {
             return;
         }
 
-        // Bouton « Rafraîchir les données Kymark » (3 crédits GET : zones + routes + véhicules)
+        // Bouton « Rafraîchir les données Kymark » (5 crédits GET : zones + routes
+        // + véhicules + règles de majoration + liens pricing groups)
         $kymark_refreshed = false;
         $kymark_refresh_error = '';
         if ( ! empty( $_GET['refresh_kymark'] ) ) {
@@ -109,14 +113,14 @@ class ETB_Kymark {
             <th scope="row">Données de tarification</th>
             <td>
                 <?php if ( $kymark_refreshed ) : ?>
-                    <p style="color: #166534; margin-top: 0;">✅ Cache Kymark rafraîchi (zones, routes tarifaires, véhicules).</p>
+                    <p style="color: #166534; margin-top: 0;">✅ Cache Kymark rafraîchi (zones, routes tarifaires, véhicules, règles de majoration).</p>
                 <?php elseif ( ! empty( $kymark_refresh_error ) ) : ?>
                     <p style="color: #991b1b; margin-top: 0;">⚠️ Erreur Kymark : <?php echo esc_html( $kymark_refresh_error ); ?></p>
                 <?php endif; ?>
                 <a href="<?php echo esc_url( $kymark_refresh_url ); ?>" class="button button-secondary">
                     🔄 Rafraîchir les données Kymark
                 </a>
-                <p class="description">Recharge les zones tarifaires, les routes A→B et les véhicules depuis l'API Kymark. Coût : 3 crédits GET (1 par ressource). Cache valable 6 h — les visiteurs du site ne consomment aucun crédit.</p>
+                <p class="description">Recharge les zones tarifaires, les routes A→B, les véhicules et les règles de majoration (surge) depuis l'API Kymark. Coût : 5 crédits GET (1 par ressource). Cache valable 6 h — les visiteurs du site ne consomment aucun crédit.</p>
             </td>
         </tr>
         <tr class="etb-dispatcher-row kymark-row">
@@ -862,6 +866,333 @@ class ETB_Kymark {
         delete_transient( 'etb_kymark_zones_cache' );
         delete_transient( 'etb_kymark_routes_cache' );
         delete_transient( 'etb_kymark_vehicles_cache' );
+        delete_transient( self::SURGE_CACHE_KEY );
+    }
+
+    /* ════════════════════════════════════════════════════════════════════
+     *  MODULE SURGE — majorations de prix (événements, périodes, jours…)
+     *
+     *  Kymark applique des règles de majoration aux prix des véhicules.
+     *  L'API publique ne renvoie que la définition des règles :
+     *   - /v1/surge_pricing_rules        : la règle (type, valeur, période)
+     *   - /v1/surge_rule_pricing_groups  : les pricing groups ciblés
+     *
+     *  Moteur volontairement extensible :
+     *   - nouveau `rule_type`  → ajouter un case dans surge_rule_matches()
+     *   - nouveau `surge_type` → ajouter un case dans get_surge_modifier()
+     *   - règle exotique gérée par un module externe → filtres
+     *     `etb_kymark_surge_rule_matches` / `etb_kymark_surge_modifier`
+     *
+     *  Règles de combinaison (par défaut, surchargeables par filtre) :
+     *   - multiplicateurs : cumulés (1.25 × 1.10)
+     *   - montants fixes  : additionnés
+     *   - prix final      = prix_route × multiplicateur + montant_fixe
+     * ════════════════════════════════════════════════════════════════════ */
+
+    /**
+     * Règles de majoration + liens vers les pricing groups (cache 6 h).
+     *
+     * @param bool $force_refresh
+     * @return array|WP_Error  Règles normalisées
+     */
+    public static function get_surge_rules( $force_refresh = false ) {
+        if ( ! $force_refresh ) {
+            $cached = get_transient( self::SURGE_CACHE_KEY );
+            if ( is_array( $cached ) ) {
+                return $cached;
+            }
+        }
+
+        $raw_rules = self::api_list_all( 'surge_pricing_rules' );
+        if ( is_wp_error( $raw_rules ) ) {
+            // Fail-open : en cas d'incident API on ne bloque pas les ventes.
+            // Cache court pour éviter de consommer un crédit à chaque visiteur.
+            set_transient( self::SURGE_CACHE_KEY, array(), 10 * MINUTE_IN_SECONDS );
+            if ( class_exists( 'ETB_Logger' ) ) {
+                ETB_Logger::error( 'Surge rules Kymark indisponibles : ' . $raw_rules->get_error_message(), 'kymark' );
+            }
+            return array();
+        }
+
+        // Les liens sont optionnels : sans lien, la règle est globale.
+        $links = self::api_list_all( 'surge_rule_pricing_groups' );
+        if ( is_wp_error( $links ) ) {
+            $links = array();
+        }
+
+        // Indexation tolérante : les noms exacts des colonnes de lien ne sont pas
+        // documentés, on accepte les variantes plausibles.
+        $groups_by_rule = array();
+        foreach ( $links as $link ) {
+            if ( ! is_array( $link ) ) {
+                continue;
+            }
+            $rule_id  = (string) ( $link['surge_rule_id'] ?? $link['surge_pricing_rule_id'] ?? $link['rule_id'] ?? '' );
+            $group_id = (string) ( $link['pricing_group_id'] ?? $link['pricing_group'] ?? $link['group_id'] ?? '' );
+            if ( '' !== $rule_id && '' !== $group_id ) {
+                $groups_by_rule[ $rule_id ][] = $group_id;
+            }
+        }
+
+        $normalized = array();
+        foreach ( $raw_rules as $rule ) {
+            if ( ! is_array( $rule ) || empty( $rule['id'] ) ) {
+                continue;
+            }
+            $id = (string) $rule['id'];
+
+            $normalized[] = array(
+                'id'           => $id,
+                'name'         => (string) ( $rule['name'] ?? '' ),
+                'enabled'      => ! empty( $rule['enabled'] ),
+                'surge_type'   => strtolower( (string) ( $rule['surge_type'] ?? 'multiplier' ) ),
+                'surge_value'  => (float) ( $rule['surge_value'] ?? 0 ),
+                'rule_type'    => strtolower( (string) ( $rule['rule_type'] ?? '' ) ),
+                'start_date'   => (string) ( $rule['start_date'] ?? '' ),
+                'end_date'     => (string) ( $rule['end_date'] ?? '' ),
+                'start_time'   => (string) ( $rule['start_time'] ?? '' ),
+                'end_time'     => (string) ( $rule['end_time'] ?? '' ),
+                'days_of_week' => array_values( array_map( 'intval', (array) ( $rule['days_of_week'] ?? array() ) ) ),
+                'group_ids'    => $groups_by_rule[ $id ] ?? array(),
+                'is_demo'      => ! empty( $rule['is_demo'] ),
+            );
+        }
+
+        set_transient( self::SURGE_CACHE_KEY, $normalized, self::CACHE_TTL );
+        return $normalized;
+    }
+
+    /** Purge ciblée du cache surge */
+    public static function refresh_surge_cache() {
+        delete_transient( self::SURGE_CACHE_KEY );
+    }
+
+    /**
+     * Convertit une date + heure de prise en charge (fuseau du site) en timestamp.
+     * Accepte "09:00 PM" (sélecteur 12 h du widget) comme "21:00".
+     */
+    public static function parse_pickup_timestamp( $date, $time = '' ) {
+        $date = trim( (string) $date );
+        $time = trim( (string) $time );
+
+        if ( '' === $date ) {
+            return time();
+        }
+        if ( '' === $time ) {
+            $time = '00:00';
+        }
+
+        try {
+            $dt = new DateTimeImmutable( $date . ' ' . $time, wp_timezone() );
+            return $dt->getTimestamp();
+        } catch ( Exception $e ) {
+            return time();
+        }
+    }
+
+    /**
+     * Modificateur applicable à un pricing group à un instant donné.
+     *
+     * @param string   $group_id  Pricing group du véhicule
+     * @param int|null $timestamp Prise en charge (défaut : maintenant)
+     * @param array|null $rules   Règles pré-chargées (évite N lectures de cache)
+     * @return array{ multiplier: float, surcharge: float, applied: array }
+     */
+    public static function get_surge_modifier( $group_id, $timestamp = null, $rules = null ) {
+        $modifier = array(
+            'multiplier' => 1.0,
+            'surcharge'  => 0.0,
+            'applied'    => array(),
+        );
+
+        if ( null === $rules ) {
+            $rules = self::get_surge_rules();
+        }
+        if ( is_wp_error( $rules ) || empty( $rules ) ) {
+            return $modifier;
+        }
+
+        $timestamp = ! empty( $timestamp ) ? (int) $timestamp : time();
+
+        foreach ( $rules as $rule ) {
+            if ( ! self::surge_rule_matches( $rule, $timestamp, $group_id ) ) {
+                continue;
+            }
+
+            $value = (float) $rule['surge_value'];
+            if ( $value <= 0 ) {
+                continue;
+            }
+
+            switch ( $rule['surge_type'] ) {
+                case 'multiplier':
+                case 'factor':
+                    $modifier['multiplier'] *= $value;
+                    break;
+
+                case 'percentage':
+                case 'percent':
+                    $modifier['multiplier'] *= ( 1 + ( $value / 100 ) );
+                    break;
+
+                case 'fixed':
+                case 'amount':
+                case 'fixed_amount':
+                case 'surcharge':
+                    $modifier['surcharge'] += $value;
+                    break;
+
+                default:
+                    // Type inconnu → ignoré (jamais de surtaxe par erreur)
+                    continue 2;
+            }
+
+            $modifier['applied'][] = array(
+                'id'    => $rule['id'],
+                'name'  => $rule['name'],
+                'type'  => $rule['surge_type'],
+                'value' => $value,
+            );
+        }
+
+        return apply_filters( 'etb_kymark_surge_modifier', $modifier, $group_id, $timestamp );
+    }
+
+    /** Applique un modificateur à un prix de route. */
+    public static function apply_surge( $price, $modifier ) {
+        $price = (float) $price;
+        if ( $price <= 0 || ! is_array( $modifier ) ) {
+            return $price;
+        }
+
+        $multiplier = isset( $modifier['multiplier'] ) ? (float) $modifier['multiplier'] : 1.0;
+        $surcharge  = isset( $modifier['surcharge'] ) ? (float) $modifier['surcharge'] : 0.0;
+
+        if ( $multiplier <= 0 ) {
+            $multiplier = 1.0;
+        }
+
+        return (float) round( ( $price * $multiplier ) + $surcharge, 2 );
+    }
+
+    /**
+     * Une règle s'applique-t-elle à ce pricing group à cet instant ?
+     * Chaque `rule_type` est isolé pour que l'ajout d'un nouveau type soit trivial.
+     */
+    private static function surge_rule_matches( $rule, $timestamp, $group_id ) {
+        if ( empty( $rule['enabled'] ) ) {
+            return false;
+        }
+
+        // Périmètre : règle liée à des pricing groups → uniquement ceux-là.
+        // Aucun lien → règle globale (comportement observé : la règle Cannes Lions
+        // s'applique alors que surge_rule_pricing_groups est vide).
+        if ( ! empty( $rule['group_ids'] ) && ! in_array( (string) $group_id, $rule['group_ids'], true ) ) {
+            return false;
+        }
+
+        $dt = ( new DateTimeImmutable( '@' . (int) $timestamp ) )->setTimezone( wp_timezone() );
+
+        switch ( $rule['rule_type'] ) {
+            case 'specific_dates':
+            case 'date_range':
+            case 'dates':
+                $matched = self::surge_match_date_range( $rule, $dt );
+                break;
+
+            case 'days_of_week':
+            case 'weekly':
+                $matched = self::surge_match_days( $rule, $dt );
+                break;
+
+            case 'time_range':
+            case 'time':
+                $matched = self::surge_match_time( $rule, $dt );
+                break;
+
+            case 'always':
+            case 'all':
+                $matched = true;
+                break;
+
+            default:
+                $matched = false;
+                break;
+        }
+
+        return (bool) apply_filters( 'etb_kymark_surge_rule_matches', $matched, $rule, $timestamp, $group_id );
+    }
+
+    /** Période de dates (bornes incluses) + éventuelle plage horaire. */
+    private static function surge_match_date_range( $rule, DateTimeImmutable $dt ) {
+        $start = (string) $rule['start_date'];
+        if ( '' === $start ) {
+            return false;
+        }
+        $end  = '' !== (string) $rule['end_date'] ? (string) $rule['end_date'] : $start;
+        $date = $dt->format( 'Y-m-d' );
+
+        if ( $date < $start || $date > $end ) {
+            return false;
+        }
+        return self::surge_match_time( $rule, $dt );
+    }
+
+    /** Jours de la semaine (0-6 dimanche=0, ou 1-7 ISO) + dates/plage horaire. */
+    private static function surge_match_days( $rule, DateTimeImmutable $dt ) {
+        $days = (array) $rule['days_of_week'];
+
+        if ( ! empty( $days ) ) {
+            $iso = false;
+            foreach ( $days as $d ) {
+                if ( (int) $d >= 7 ) {
+                    $iso = true;
+                    break;
+                }
+            }
+            $today = (int) $dt->format( 'w' ); // 0 = dimanche
+            $match = false;
+            foreach ( $days as $d ) {
+                $normalized = $iso ? ( (int) $d % 7 ) : (int) $d;
+                if ( $normalized === $today ) {
+                    $match = true;
+                    break;
+                }
+            }
+            if ( ! $match ) {
+                return false;
+            }
+        }
+
+        // Si une période de dates est également renseignée, elle reste prioritaire.
+        if ( '' !== (string) $rule['start_date'] ) {
+            $end  = '' !== (string) $rule['end_date'] ? (string) $rule['end_date'] : (string) $rule['start_date'];
+            $date = $dt->format( 'Y-m-d' );
+            if ( $date < $rule['start_date'] || $date > $end ) {
+                return false;
+            }
+        }
+
+        return self::surge_match_time( $rule, $dt );
+    }
+
+    /** Plage horaire optionnelle (gère le chevauchement minuit). */
+    private static function surge_match_time( $rule, DateTimeImmutable $dt ) {
+        $start = (string) $rule['start_time'];
+        $end   = (string) $rule['end_time'];
+
+        if ( '' === $start && '' === $end ) {
+            return true; // pas de restriction horaire → toute la journée
+        }
+
+        $now   = $dt->format( 'H:i:s' );
+        $start = '' !== $start ? $start : '00:00:00';
+        $end   = '' !== $end ? $end : '23:59:59';
+
+        if ( $start <= $end ) {
+            return ( $now >= $start && $now <= $end );
+        }
+        return ( $now >= $start || $now <= $end );
     }
 
     /**
@@ -911,14 +1242,16 @@ class ETB_Kymark {
      * Tarifs de transfert A→B pour tous les véhicules Kymark.
      *
      * @param float $from_lat / $from_lng / $to_lat / $to_lng
+     * @param int|null $pickup_ts Timestamp de prise en charge (pour les règles de majoration)
      * @return array {
      *     zone_found: bool — false si un point est hors des zones Kymark,
      *     from_zone / to_zone: noms des zones résolues,
-     *     vehicles: [ { kymark_vehicle_id, name, capacity, type, price }, ... ] (uniquement les véhicules tarifés)
+     *     surge_active: bool — au moins une règle de majoration appliquée,
+     *     vehicles: [ { kymark_vehicle_id, name, capacity, type, base_price, price, surge }, ... ]
      * }
      * @return WP_Error en cas d'échec API
      */
-    public static function get_transfer_quote( $from_lat, $from_lng, $to_lat, $to_lng ) {
+    public static function get_transfer_quote( $from_lat, $from_lng, $to_lat, $to_lng, $pickup_ts = null ) {
         $zones    = self::get_zones();
         if ( is_wp_error( $zones ) ) {
             return $zones;
@@ -933,10 +1266,11 @@ class ETB_Kymark {
         }
 
         $result = array(
-            'zone_found' => false,
-            'from_zone'  => '',
-            'to_zone'    => '',
-            'vehicles'   => array(),
+            'zone_found'   => false,
+            'from_zone'    => '',
+            'to_zone'      => '',
+            'surge_active' => false,
+            'vehicles'     => array(),
         );
 
         $from_zone = self::resolve_zone( $from_lat, $from_lng, $zones );
@@ -966,18 +1300,37 @@ class ETB_Kymark {
         // (affichés « Upon Request » si la carte WP est marquée data-transfer-quote-only,
         // sinon masqués). Un véhicule sans tarif ne doit jamais disparaître s'il est
         // forcé « Upon Request » dans l'admin WP.
+        // Règles de majoration chargées une seule fois pour tout le devis
+        // (cache 6 h ; fail-open : en cas d'erreur, aucun supplément appliqué).
+        $surge_rules = self::get_surge_rules();
+        if ( is_wp_error( $surge_rules ) ) {
+            $surge_rules = array();
+        }
+        $pickup_ts = ! empty( $pickup_ts ) ? (int) $pickup_ts : time();
+
         foreach ( $vehicles as $vehicle ) {
             if ( strtolower( (string) ( $vehicle['status'] ?? '' ) ) !== 'available' ) {
                 continue;
             }
-            $group_id = $vehicle['pricing_group_id'] ?? '';
-            $price    = isset( $prices_by_group[ $group_id ] ) ? (float) $prices_by_group[ $group_id ] : 0.0;
+            $group_id  = $vehicle['pricing_group_id'] ?? '';
+            $base_price = isset( $prices_by_group[ $group_id ] ) ? (float) $prices_by_group[ $group_id ] : 0.0;
+
+            // Majoration éventuelle (événement, période, jour de la semaine…)
+            $modifier = self::get_surge_modifier( $group_id, $pickup_ts, $surge_rules );
+            $price    = self::apply_surge( $base_price, $modifier );
+
+            if ( ! empty( $modifier['applied'] ) && $base_price > 0 ) {
+                $result['surge_active'] = true;
+            }
+
             $result['vehicles'][] = array(
                 'kymark_vehicle_id' => $vehicle['id'] ?? '',
                 'name'              => $vehicle['name'] ?? '',
                 'capacity'          => intval( $vehicle['capacity'] ?? 0 ),
                 'type'              => $vehicle['type'] ?? '',
+                'base_price'        => $base_price,
                 'price'             => $price,
+                'surge'             => ! empty( $modifier['applied'] ) ? $modifier : null,
             );
         }
 
