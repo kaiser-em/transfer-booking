@@ -930,6 +930,38 @@
     align-self: center !important;
 }
 
+/* Montant + devise restent solidaires quel que soit le sens du bloc */
+.etb-quick-card-footer--kymark .etb-quick-price-value {
+    display: inline-flex !important;
+    align-items: baseline !important;
+    gap: 5px !important;
+    white-space: nowrap !important;
+}
+
+/* Sans majoration : « All inclusive » au-dessus du prix, prix à gauche,
+   bouton Select à droite, centrés verticalement */
+.etb-quick-card-footer--kymark.etb-quick-card-footer--simple {
+    align-items: center !important;
+    justify-content: space-between !important;
+}
+
+.etb-quick-card-footer--kymark.etb-quick-card-footer--simple .etb-quick-price-display {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    justify-content: flex-start !important;
+    gap: 2px !important;
+}
+
+.etb-quick-card-footer--kymark.etb-quick-card-footer--simple .etb-quick-all-inclusive {
+    margin: 0 !important;
+    font-size: 10px !important;
+    letter-spacing: 0.04em !important;
+}
+
+.etb-quick-card-footer--kymark.etb-quick-card-footer--simple .etb-quick-select-btn {
+    align-self: center !important;
+}
+
 /* Période de majoration : le bouton disparaît, le détail du prix occupe
    toute la largeur (la carte reste cliquable pour sélectionner). */
 .etb-quick-card-footer--kymark.etb-quick-card-footer--surged .etb-quick-select-btn {
@@ -990,14 +1022,15 @@
     max-width: 100% !important;
 }
 
-/* Le libellé peut être long (nom de la règle Kymark) : une ligne, tronquée,
-   le montant reste toujours entièrement visible à droite. */
+/* Libellés en gras, même couleur que les montants */
 .etb-quick-price-row > span:first-child {
     flex: 1 1 auto !important;
     min-width: 0 !important;
     overflow: hidden !important;
     text-overflow: ellipsis !important;
     white-space: nowrap !important;
+    font-weight: 700 !important;
+    color: var(--etb-text-primary, #e2e8f0) !important;
 }
 
 .etb-quick-price-row > span:last-child {
@@ -1008,13 +1041,10 @@
     color: var(--etb-text-primary, #e2e8f0) !important;
 }
 
-.etb-quick-price-row--surge > span:first-child {
-    color: var(--etb-accent-gold, #fbac18) !important;
-    font-weight: 600 !important;
-}
-
+/* La ligne de majoration garde la couleur normale (text primaire) */
+.etb-quick-price-row--surge > span:first-child,
 .etb-quick-price-row--surge > span:last-child {
-    color: var(--etb-accent-gold, #fbac18) !important;
+    color: var(--etb-text-primary, #e2e8f0) !important;
 }
 
 .etb-quick-price-detail strong {

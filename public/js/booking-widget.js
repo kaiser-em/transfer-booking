@@ -78,7 +78,11 @@
         // En période de majoration, le bouton Select est masqué : le détail du
         // prix (base + majoration + total) occupe toute la largeur de la carte.
         // La carte reste cliquable pour sélectionner le véhicule.
-        if (footer) footer.classList.toggle('etb-quick-card-footer--surged', hasSurge);
+        // Sans majoration : prix à gauche, bouton à droite, centrés verticalement.
+        if (footer) {
+            footer.classList.toggle('etb-quick-card-footer--surged', hasSurge);
+            footer.classList.toggle('etb-quick-card-footer--simple', !hasSurge && !uponRequest);
+        }
 
         let breakdown = card.querySelector('.etb-quick-price-breakdown');
 
@@ -110,17 +114,21 @@
         if (priceBox) {
             priceBox.classList.toggle('is-upon-request', uponRequest);
 
-            // Légende à gauche : badge « Upon Request » ou TOTAL / all inclusive.
-            let caption;
+            // Légende : badge « Upon Request », ou « TOTAL / all inclusive » quand
+            // une majoration s'applique. Sans majoration : « All inclusive » seul,
+            // juste au-dessus du prix.
+            let caption = '';
             if (uponRequest) {
                 caption = '<span class="etb-quick-quote-badge">' + etbT('Upon Request') + '</span>';
-            } else {
+            } else if (hasSurge) {
                 caption = '<span class="etb-quick-total-caption">' +
                               '<span class="etb-quick-total-label">' + etbT('Total') + '</span>' +
                               (total > 0
                                   ? '<span class="etb-quick-all-inclusive">' + etbT('All inclusive') + '</span>'
                                   : '') +
                           '</span>';
+            } else if (total > 0) {
+                caption = '<span class="etb-quick-all-inclusive">' + etbT('All inclusive') + '</span>';
             }
 
             let amount = '';
@@ -129,7 +137,8 @@
                          '<span class="etb-quick-currency">' + currency + '</span>';
             }
 
-            priceBox.innerHTML = caption + amount;
+            priceBox.innerHTML = caption +
+                (amount ? '<span class="etb-quick-price-value">' + amount + '</span>' : '');
         }
 
         if (detailBox) {
@@ -1268,7 +1277,7 @@
 
                     if (detailEl) {
                         // 💡 CORRECTION : On garde le message "Minimum package" et on ajoute l'info Upon Request
-                        detailEl.innerHTML = minimumNoticeHtml + etbT('Price is indicative. Select to confirm availability & final quote.');
+                        detailEl.innerHTML = minimumNoticeHtml + etbT('Indicative info Only. Select to confirm availability & Price');
                         detailEl.style.display = 'block';
                     }
 
@@ -1405,7 +1414,7 @@
                             targetCard.dataset.isUponRequest = '1';
                             renderKymarkPrice(targetCard, item, currency, {
                                 uponRequest: true,
-                                note: etbT('Price is indicative. Select to confirm availability & final quote.')
+                                note: etbT('Indicative info Only. Select to confirm availability & Price')
                             });
                             if (selBtn) selBtn.textContent = etbT('Request Quote');
                         } else if (kymarkPrice > 0) {
@@ -1667,7 +1676,7 @@
                                 targetCard.dataset.isUponRequest = '1';
                                 renderKymarkPrice(targetCard, item, currency, {
                                     uponRequest: true,
-                                    note: etbT('Price is indicative. Select to confirm availability & final quote.')
+                                    note: etbT('Indicative info Only. Select to confirm availability & Price')
                                 });
                                 if (selBtn) selBtn.textContent = etbT('Request Quote');
                             } else if (kymarkPrice > 0) {
@@ -1762,7 +1771,7 @@
 
                                     var priceDetailEl = targetCard.querySelector('.etb-quick-price-detail');
                                     if (priceDetailEl) {
-                                        priceDetailEl.innerHTML = etbT('Price is indicative. Select to confirm availability & final quote.');
+                                        priceDetailEl.innerHTML = etbT('Indicative info Only. Select to confirm availability & Price');
                                         priceDetailEl.style.display = 'block';
                                     }
 
