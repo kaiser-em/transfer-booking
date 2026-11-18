@@ -1323,8 +1323,9 @@
                             if (selBtn) selBtn.textContent = etbT('Select');
                             if (allInclEl) allInclEl.style.display = 'flex';
                         } else {
-                            // Pas de tarif Kymark pour cette route → Devis
-                            triggerCustomQuoteMode();
+                            // Pas de tarif Kymark pour cette route et non marqué
+                            // « Upon Request » → on masque simplement la carte
+                            // (triggerCustomQuoteMode() ferait basculer TOUT le widget en devis).
                             return;
                         }
                         targetCard.style.display = 'flex';
@@ -1600,7 +1601,9 @@
                                 if (selBtn) selBtn.textContent = etbT('Select');
                                 if (allInclEl) allInclEl.style.display = 'flex';
                             } else {
-                                triggerCustomQuoteMode();
+                                // Pas de tarif Kymark et non marqué « Upon Request »
+                                // → on masque la carte (elle est déjà cachée plus haut),
+                                // sans basculer tout le widget en mode devis.
                                 return;
                             }
                             targetCard.style.display = 'flex';

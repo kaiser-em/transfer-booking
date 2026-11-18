@@ -308,22 +308,38 @@ class ETB_Kymark {
 
         $is_paid = ! empty( $data['paid'] ) || ! empty( $data['payment_intent_id'] );
 
+        // Extraction du siège bébé depuis les extra_fees pour l'inclure dans le prix du trip
+        $child_seat_fee_trip = 0.0;
+        $extra_fees_trip = (array) ( $data['extra_fees'] ?? array() );
+        foreach ( $extra_fees_trip as $fee ) {
+            if ( ! empty( $fee['active'] ) && ! empty( $fee['category'] ) && 'child_seat_fee' === $fee['category'] ) {
+                $child_seat_fee_trip = floatval( $fee['amount'] ?? 0 );
+                break;
+            }
+        }
+
         // 8. ÉTAPE 1 — Création de la course : POST /v1/trips
-        //    Le 'price' est le tarif de transport seul (base_fare, sans tip ni extras),
-        //    envoyés séparément (gratuity, notes). Le total payé client reste
+        //    Le 'price' inclut le tarif de transport + siège bébé (facturés comme prix de course).
+        //    Le tip est envoyé séparément via 'gratuity'. Le total client reste
         //    dans le shuttle_booking (total_price).
         $trip_payload = array(
             'pickup_address'  => $pickup_address,
             'dropoff_address' => $dropoff_address,
             'pickup_date'     => $pickup_iso,
             'passenger_count' => $total_passengers,
-            'price'           => (float) round( $data['pricing']['base_fare'] ?? $grand_total, 2 ),
+            'price'           => (float) round( (float) ( $data['pricing']['base_fare'] ?? $grand_total ) + $child_seat_fee_trip, 2 ),
             'status'          => 'confirmed',
             'payment_status'  => $is_paid ? 'paid' : 'unpaid',
             'notes'           => $notes,
         );
         if ( ! empty( $vehicle_type ) ) {
             $trip_payload['vehicle_type'] = $vehicle_type;
+        }
+        // Assignation du véhicule de flotte Kymark (bloc « Vehicle » du trip dans le
+        // dashboard). Champ writable confirmé dans la doc POST /v1/trips : « ID of an
+        // existing record in /v1/vehicles ». Sans lui, le trip reste « No vehicle yet ».
+        if ( ! empty( $kymark_vehicle_uuid ) ) {
+            $trip_payload['vehicle_id'] = $kymark_vehicle_uuid;
         }
 
         // 💰 Pourboire transmis à Kymark (champ gratuity sur /v1/trips)
@@ -499,11 +515,61 @@ class ETB_Kymark {
         update_post_meta( $booking_id, '_etb_kymark_payment_status', 'paid' );
         delete_post_meta( $booking_id, '_etb_kymark_error' );
 
-        // 8bis. Marquer aussi le trip comme payé (PATCH /v1/trips/{id})
-        // NOTE : stripe_payment_intent_id / stripe_charge_id ne sont PAS writable
-        // sur /v1/trips (seulement sur /v1/shuttle_bookings). On ne les garde
-        // que sur le shuttle_booking au-dessus.
         $trip_uuid = get_post_meta( $booking_id, '_etb_kymark_trip_uuid', true );
+
+        // 8bis. CRÉATION DU PAIEMENT DANS KYMARK (POST /v1/trip_payments)
+        // C'est cet enregistrement qui alimente le bloc "Payments / Total Due"
+        // du trip dans le dashboard Kymark. Le PATCH payment_status seul ne suffit pas.
+        // Doc : amount + payment_source_name + trip_id requis.
+        if ( ! empty( $trip_uuid ) ) {
+            $payment_uuid = get_post_meta( $booking_id, '_etb_kymark_trip_payment_uuid', true );
+
+            if ( ! empty( $payment_uuid ) ) {
+                // Déjà créé (idempotence) — ne pas recréer pour éviter un doublon.
+                delete_post_meta( $booking_id, '_etb_kymark_trip_payment_error' );
+            } else {
+                // Montant réellement payé par le client : total WP (inclut sièges bébé + tip + extras),
+                // avec repli sur base + tip si le total n'est pas renseigné.
+                $paid_amount = floatval( get_post_meta( $booking_id, '_etb_total_price', true ) );
+                if ( $paid_amount <= 0 ) {
+                    $paid_amount = floatval( get_post_meta( $booking_id, '_etb_base_price', true ) )
+                        + floatval( get_post_meta( $booking_id, '_etb_tip_amount', true ) );
+                }
+
+                $payment_payload = array(
+                    'amount'              => (float) round( $paid_amount, 2 ),
+                    'payment_source_name' => 'Stripe',
+                    'trip_id'             => (string) $trip_uuid,
+                    'notes'               => 'Paiement en ligne via WordPress (Elite Transfer Booking)',
+                );
+                if ( ! empty( $stripe_intent_id ) ) {
+                    $payment_payload['stripe_payment_intent_id'] = (string) $stripe_intent_id;
+                    $payment_payload['stripe_charge_id']         = (string) $stripe_intent_id;
+                }
+
+                $payment_res = self::api_request( 'POST', '/trip_payments', $payment_payload );
+                if ( is_wp_error( $payment_res ) ) {
+                    // Non bloquant : les statuts (patchs ci-dessous) sont quand même poussés.
+                    update_post_meta( $booking_id, '_etb_kymark_trip_payment_error', 'Création trip_payment Kymark : ' . $payment_res->get_error_message() );
+                } else {
+                    delete_post_meta( $booking_id, '_etb_kymark_trip_payment_error' );
+                    $new_payment_uuid = '';
+                    if ( is_array( $payment_res ) ) {
+                        $new_payment_uuid = (string) ( $payment_res['data']['id'] ?? $payment_res['id'] ?? '' );
+                    }
+                    if ( ! empty( $new_payment_uuid ) ) {
+                        update_post_meta( $booking_id, '_etb_kymark_trip_payment_uuid', $new_payment_uuid );
+                    }
+                    // Débogage : réponse brute de la création du paiement
+                    update_post_meta( $booking_id, '_etb_kymark_trip_payment_response', wp_json_encode( $payment_res ) );
+                }
+            }
+        }
+
+        // 8ter. Marquer aussi le trip comme payé (PATCH /v1/trips/{id})
+        // NOTE : stripe_payment_intent_id / stripe_charge_id ne sont PAS writable
+        // sur /v1/trips (seulement sur /v1/shuttle_bookings et /v1/trip_payments).
+        // On ne les garde que sur le shuttle_booking et le trip_payment.
         if ( ! empty( $trip_uuid ) ) {
             $trip_payload = array(
                 'payment_status' => 'paid',
@@ -514,6 +580,9 @@ class ETB_Kymark {
                 update_post_meta( $booking_id, '_etb_kymark_trip_patch_error', $trip_res->get_error_message() );
             } else {
                 delete_post_meta( $booking_id, '_etb_kymark_trip_patch_error' );
+                // Débogage : stocker la réponse brute du PATCH trip
+                update_post_meta( $booking_id, '_etb_kymark_trip_patch_response', wp_json_encode( $trip_res ) );
+                update_post_meta( $booking_id, '_etb_kymark_trip_patch_code', '200' );
             }
         }
 
@@ -562,7 +631,12 @@ class ETB_Kymark {
             return '';
         }
 
-        // 1. Recherche par email
+        // Split name into first/last
+        $name_parts   = explode( ' ', $name, 2 );
+        $first_name   = ! empty( $name_parts[0] ) ? $name_parts[0] : 'Client';
+        $last_name    = ! empty( $name_parts[1] ) ? $name_parts[1] : '';
+
+        // 1. Recherche par email (paramètre ?search= confirmé fonctionnel)
         $search = self::api_request( 'GET', '/customers?search=' . rawurlencode( $email ), array() );
         if ( ! is_wp_error( $search ) && ! empty( $search['data'] ) && is_array( $search['data'] ) ) {
             foreach ( $search['data'] as $c ) {
@@ -574,11 +648,12 @@ class ETB_Kymark {
             return (string) ( $search['data'][0]['id'] ?? '' );
         }
 
-        // 2. Création du customer (champs standards — à adapter si l'API exige d'autres noms de champs)
+        // 2. Création du customer (champs selon doc API : first_name requis, last_name, email, primary_phone)
         $create = self::api_request( 'POST', '/customers', array(
-            'name'  => $name,
-            'email' => $email,
-            'phone' => $phone,
+            'first_name'   => $first_name,
+            'last_name'    => $last_name,
+            'email'        => $email,
+            'primary_phone'=> $phone,
         ) );
         if ( is_wp_error( $create ) ) {
             return '';
@@ -866,21 +941,23 @@ class ETB_Kymark {
             }
         }
 
-        // Véhicules disponibles dont le pricing group a un tarif pour cette route
+        // Véhicules disponibles — TOUS sont renvoyés (même sans tarif pour cette route) :
+        // ceux avec un prix Kymark sont tarifés, ceux à 0 sont gérés côté JS
+        // (affichés « Upon Request » si la carte WP est marquée data-transfer-quote-only,
+        // sinon masqués). Un véhicule sans tarif ne doit jamais disparaître s'il est
+        // forcé « Upon Request » dans l'admin WP.
         foreach ( $vehicles as $vehicle ) {
             if ( strtolower( (string) ( $vehicle['status'] ?? '' ) ) !== 'available' ) {
                 continue;
             }
             $group_id = $vehicle['pricing_group_id'] ?? '';
-            if ( ! $group_id || ! isset( $prices_by_group[ $group_id ] ) ) {
-                continue;
-            }
+            $price    = isset( $prices_by_group[ $group_id ] ) ? (float) $prices_by_group[ $group_id ] : 0.0;
             $result['vehicles'][] = array(
                 'kymark_vehicle_id' => $vehicle['id'] ?? '',
                 'name'              => $vehicle['name'] ?? '',
                 'capacity'          => intval( $vehicle['capacity'] ?? 0 ),
                 'type'              => $vehicle['type'] ?? '',
-                'price'             => $prices_by_group[ $group_id ],
+                'price'             => $price,
             );
         }
 
