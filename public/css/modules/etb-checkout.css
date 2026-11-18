@@ -1847,6 +1847,26 @@ html, body {
     caret-color: #0f172a !important;
 }
 
+/* Email et téléphone : même hauteur exactement dans la grille */
+[data-etb-theme="light"] .etb-chk-grid-2 .etb-floating-field {
+    min-height: 62px !important;
+    height: 62px !important;
+}
+
+[data-etb-theme="light"] .etb-chk-grid-2 .etb-floating-field input,
+[data-etb-theme="light"] .etb-chk-grid-2 .etb-floating-field .iti input {
+    height: 100% !important;
+    padding: 0 !important;
+}
+
+[data-etb-theme="light"] .etb-chk-grid-2 .etb-floating-field .iti input {
+    padding-left: 90px !important; /* espace pour le drapeau téléphone */
+}
+
+[data-etb-theme="light"] .etb-chk-grid-2 .etb-floating-field input:not([type="tel"]) {
+    padding-left: 0 !important;
+}
+
 
 
 
