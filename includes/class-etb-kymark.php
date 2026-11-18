@@ -51,9 +51,11 @@ class ETB_Kymark {
         add_filter( 'etb_sanitize_dispatcher_settings', array( __CLASS__, 'sanitize_settings' ), 10, 2 );
         add_action( 'etb_render_dispatcher_settings', array( __CLASS__, 'render_settings' ) );
 
-        // TODO: Notifications Kymark (création, modification, statut, paiement).
-        // À implémenter après avoir confirmé les noms de champs exacts de l'API Kymark
-        // via Postman ou la documentation officielle. Aucun champ n'est deviné ici.
+        // Page d'admin des notifications Kymark
+        add_action( 'admin_menu', array( __CLASS__, 'register_notification_admin_page' ) );
+
+        // AJAX : activer/désactiver une notification Kymark
+        add_action( 'wp_ajax_etb_kymark_toggle_notification', array( __CLASS__, 'ajax_toggle_notification' ) );
     }
 
     /**
@@ -1437,9 +1439,209 @@ class ETB_Kymark {
         return $autos;
     }
 
-    // TODO: update_kymark_resource_bool() — to be implemented after confirming API field names
+    // TODO: Notifications Kymark — à activer après confirmation des noms de champs
+    // via Postman ou la doc API Kymark. Champs confirmés par la doc :
+    //   PATCH /v1/notification_preferences/{id}  -> email_enabled (boolean)
+    //   PATCH /v1/email_automations/{id}        -> repeat_enabled (boolean)
 
-    // TODO: Notifications Kymark (création, modification, statut, paiement).
-    // À implémenter après avoir confirmé les noms de champs exacts de l'API Kymark
-    // via Postman ou la documentation officielle. Aucun champ n'est deviné ici.
+    /**
+     * Active/désactive une préférence de notification Kymark.
+     * PATCH /v1/notification_preferences/{id}  avec {"email_enabled": true|false}
+     *
+     * @param string $id     UUID de la préférence (retourné par GET /v1/notification_preferences)
+     * @param bool   $enabled true pour activer, false pour désactiver
+     * @return array|WP_Error
+     */
+    public static function update_notification_preference( $id, $enabled ) {
+        $settings = get_option( 'etb_general_settings', array() );
+        $token    = $settings['kymark_api_token'] ?? '';
+        if ( empty( $token ) ) {
+            return new WP_Error( 'etb_kymark_no_token', 'Clé API Kymark manquante.' );
+        }
+
+        $response = self::api_request( 'PATCH', '/notification_preferences/' . rawurlencode( (string) $id ), array(
+            'email_enabled' => (bool) $enabled,
+        ) );
+        if ( is_wp_error( $response ) ) {
+            return $response;
+        }
+
+        delete_transient( self::NOTIF_CACHE_KEY );
+        return $response;
+    }
+
+    /**
+     * Active/désactive une automatisation email Kymark.
+     * PATCH /v1/email_automations/{id}  avec {"repeat_enabled": true|false}
+     *
+     * @param string $id     UUID de l'automatisation (retourné par GET /v1/email_automations)
+     * @param bool   $enabled true pour activer, false pour désactiver
+     * @return array|WP_Error
+     */
+    public static function update_email_automation( $id, $enabled ) {
+        $settings = get_option( 'etb_general_settings', array() );
+        $token    = $settings['kymark_api_token'] ?? '';
+        if ( empty( $token ) ) {
+            return new WP_Error( 'etb_kymark_no_token', 'Clé API Kymark manquante.' );
+        }
+
+        $response = self::api_request( 'PATCH', '/email_automations/' . rawurlencode( (string) $id ), array(
+            'repeat_enabled' => (bool) $enabled,
+        ) );
+        if ( is_wp_error( $response ) ) {
+            return $response;
+        }
+
+        delete_transient( self::EMAIL_AUTO_CACHE_KEY );
+        return $response;
+    }
+
+    /**
+     * Enregistre la page d'admin des notifications Kymark.
+     */
+    public static function register_notification_admin_page() {
+        add_submenu_page(
+            'edit.php?post_type=tour_booking',
+            'Notifications Kymark',
+            'Notifications Kymark',
+            'manage_options',
+            'etb-kymark-notifications',
+            array( __CLASS__, 'render_notification_settings' )
+        );
+    }
+
+    /**
+     * Affiche la page d'admin des notifications Kymark.
+     */
+    public static function render_notification_settings() {
+        $settings = get_option( 'etb_general_settings', array() );
+        if ( empty( $settings['kymark_api_token'] ) ) {
+            echo '<div class="notice notice-error"><p>Veuillez configurer la clé API Kymark d\'abord.</p></div>';
+            return;
+        }
+
+        $prefs = self::get_notification_preferences();
+        $autos = self::get_email_automations();
+
+        if ( is_wp_error( $prefs ) ) {
+            echo '<div class="notice notice-error"><p>Erreur Kymark : ' . esc_html( $prefs->get_error_message() ) . '</p></div>';
+            return;
+        }
+        if ( is_wp_error( $autos ) ) {
+            echo '<div class="notice notice-error"><p>Erreur Kymark : ' . esc_html( $autos->get_error_message() ) . '</p></div>';
+            return;
+        }
+
+        ?>
+        <div class="wrap">
+            <h1>Notifications Kymark</h1>
+            <p>Configurez les emails envoyés automatiquement par Kymark (création, modification, statut, paiement), exactement comme son widget natif.</p>
+
+            <h2>Préférences de notification</h2>
+            <?php if ( empty( $prefs ) ) : ?>
+                <p>Aucune préférence de notification retournée par l'API Kymark.</p>
+            <?php else : ?>
+                <table class="wp-list-table widefixed fixed striped">
+                    <thead><tr><th>ID</th><th>Événement</th><th>Email activé</th><th>SMS activé</th><th>Action</th></tr></thead>
+                    <tbody>
+                    <?php foreach ( $prefs as $pref ) : ?>
+                        <tr>
+                            <td><?php echo esc_html( $pref['id'] ?? '' ); ?></td>
+                            <td><?php echo esc_html( $pref['alert_key'] ?? '' ); ?></td>
+                            <td><?php echo ! empty( $pref['email_enabled'] ) ? 'Oui' : 'Non'; ?></td>
+                            <td><?php echo ! empty( $pref['sms_enabled'] ) ? 'Oui' : 'Non'; ?></td>
+                            <td>
+                                <button class="button button-small etb-kymark-toggle-notif" data-id="<?php echo esc_attr( $pref['id'] ?? '' ); ?>" data-enabled="<?php echo ! empty( $pref['email_enabled'] ) ? '1' : '0'; ?>" data-type="preference"><?php echo ! empty( $pref['email_enabled'] ) ? 'Désactiver email' : 'Activer email'; ?></button>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
+                    </tbody>
+                </table>
+            <?php endif; ?>
+
+            <h2>Email Automations</h2>
+            <?php if ( empty( $autos ) ) : ?>
+                <p>Aucune automatisation email retournée par l'API Kymark.</p>
+            <?php else : ?>
+                <table class="wp-list-table widefixed fixed striped">
+                    <thead><tr><th>ID</th><th>Nom</th><th>Déclencheur</th><th>Activée</th><th>Action</th></tr></thead>
+                    <tbody>
+                    <?php foreach ( $autos as $auto ) : ?>
+                        <tr>
+                            <td><?php echo esc_html( $auto['id'] ?? '' ); ?></td>
+                            <td><?php echo esc_html( $auto['name'] ?? '' ); ?></td>
+                            <td><?php echo esc_html( $auto['trigger_event'] ?? $auto['trigger'] ?? '' ); ?></td>
+                            <td><?php echo ! empty( $auto['repeat_enabled'] ) ? 'Oui' : 'Non'; ?></td>
+                            <td>
+                                <button class="button button-small etb-kymark-toggle-notif" data-id="<?php echo esc_attr( $auto['id'] ?? '' ); ?>" data-enabled="<?php echo ! empty( $auto['repeat_enabled'] ) ? '1' : '0'; ?>" data-type="email_automation"><?php echo ! empty( $auto['repeat_enabled'] ) ? 'Désactiver' : 'Activer'; ?></button>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
+                    </tbody>
+                </table>
+            <?php endif; ?>
+        </div>
+
+        <script>
+        jQuery(document).ready(function($) {
+            $('.etb-kymark-toggle-notif').on('click', function() {
+                var btn = $(this);
+                var id = btn.data('id');
+                var currentEnabled = btn.data('enabled') === '1';
+                var newEnabled = !currentEnabled;
+                var type = btn.data('type') || 'preference';
+
+                btn.prop('disabled', true).text('...');
+
+                $.post(ajaxurl, {
+                    action: 'etb_kymark_toggle_notification',
+                    id: id,
+                    enabled: newEnabled ? 1 : 0,
+                    type: type,
+                    nonce: '<?php echo wp_create_nonce('etb_kymark_notification'); ?>'
+                }, function(response) {
+                    btn.prop('disabled', false);
+                    if (response.success) {
+                        btn.data('enabled', newEnabled ? '1' : '0');
+                        btn.text(newEnabled ? 'Désactiver' : 'Activer');
+                    } else {
+                        alert('Erreur : ' + (response.data && response.data.message ? response.data.message : 'inconnue'));
+                    }
+                });
+            });
+        });
+        </script>
+        <?php
+    }
+
+    /**
+     * AJAX handler pour activer/désactiver une notification Kymark.
+     */
+    public static function ajax_toggle_notification() {
+        check_ajax_referer( 'etb_kymark_notification', 'nonce' );
+
+        if ( ! current_user_can( 'manage_options' ) ) {
+            wp_send_json_error( array( 'message' => 'Permission refusée.' ) );
+        }
+
+        $id      = sanitize_text_field( $_POST['id'] ?? '' );
+        $enabled = ! empty( $_POST['enabled'] ) && '1' === $_POST['enabled'];
+        $type    = sanitize_text_field( $_POST['type'] ?? 'preference' );
+
+        if ( empty( $id ) ) {
+            wp_send_json_error( array( 'message' => 'ID manquant.' ) );
+        }
+
+        if ( 'preference' === $type ) {
+            $res = self::update_notification_preference( $id, $enabled );
+        } else {
+            $res = self::update_email_automation( $id, $enabled );
+        }
+
+        if ( is_wp_error( $res ) ) {
+            wp_send_json_error( array( 'message' => $res->get_error_message() ) );
+        }
+
+        wp_send_json_success( array( 'message' => 'Mis à jour.' ) );
+    }
 }
