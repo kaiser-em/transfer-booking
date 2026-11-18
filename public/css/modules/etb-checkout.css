@@ -1082,6 +1082,27 @@ html, body {
     color: var(--etb-accent-gold, #fbac18) !important;
 }
 
+/* Booker / assistant fields : contraste et labels en minuscules */
+[data-etb-theme="light"] #etb-guest-booker-fields h4 {
+    font-weight: 800 !important;
+    color: var(--etb-text-primary, #0d0d0d) !important;
+}
+
+[data-etb-theme="light"] #etb-guest-booker-fields label {
+    text-transform: lowercase !important;
+    font-weight: 600 !important;
+    color: var(--etb-text-primary, #0d0d0d) !important;
+}
+
+[data-etb-theme="light"] #etb-guest-booker-fields input::placeholder {
+    color: var(--etb-text-secondary, #5d5d5d) !important;
+    opacity: 1 !important;
+}
+
+[data-etb-theme="light"] #etb-guest-booker-fields input:-webkit-autofill::placeholder {
+    color: var(--etb-text-secondary, #5d5d5d) !important;
+}
+
 /* ==========================================================================
    MODULE DE PAIEMENT SÉCURISÉ EDEN CAB / STRIPE (ÉTAPE 2)
    ========================================================================== */
