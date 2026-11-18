@@ -2050,9 +2050,18 @@
                 // 1. Mise à jour de la barre du bas avec ce véhicule précis ET les détails de l'itinéraire
                 const dynamicContentEl = quickRoot.querySelector('#etb-quick-dynamic-bar-content');
                 if (dynamicContentEl) {
-                    const priceHtml = isCarQuote
-                        ? '<span style="color: var(--etb-accent-gold, #fbac18); font-size: 20px; font-weight: 800;">' + etbT('Custom Quote') + '</span>'
-                        : `<span style="color: var(--etb-accent-gold, #fbac18); font-size: 26px; font-weight: 900;">${carPrice} <span style="font-size: 18px;">${currency}</span></span>`;
+                    let priceHtml;
+                    let subHtml = '';
+                    if (isCarQuote) {
+                        priceHtml = '<span style="color: var(--etb-accent-gold, #fbac18); font-size: 20px; font-weight: 800;">' + etbT('Custom Quote') + '</span>';
+                    } else if (isUponRequestCar) {
+                        priceHtml = '<span style="color: var(--etb-accent-gold, #fbac18); font-size: 20px; font-weight: 800;">' + etbT('Upon Request') + '</span>';
+                    } else {
+                        priceHtml = `<span style="color: var(--etb-accent-gold, #fbac18); font-size: 26px; font-weight: 900;">${carPrice} <span style="font-size: 18px;">${currency}</span></span>`;
+                        subHtml = `<div class="etb-bar-sub" style="color: var(--etb-text-secondary, #5d5d5d); font-size: 11px; text-transform: uppercase;">
+                                ${currentMode === 'hourly' ? etbT('Hourly Charter') : etbT('All Inclusive (Fixed rate)')}
+                            </div>`;
+                    }
 
                     // Récupération des informations de trajet en direct
                     const pInputEl   = quickRoot.querySelector('#etb-quick-pickup');
@@ -2069,7 +2078,7 @@
                     const routeHtml = (currentMode === 'hourly')
                         ? `<div class="etb-route-line">
                                <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="var(--etb-accent-gold, #fbac18)" stroke-width="2" style="flex-shrink:0;"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
-                               <strong style="color: var(--etb-text-primary, #ffffff); font-weight: 600;">${etbT('By the hour')} (${durVal}h)</strong>
+                               <strong style="color: var(--etb-text-primary); font-weight: 600;">${etbT('By the hour')} (${durVal}h)</strong>
                            </div>
                            <div class="etb-route-line">
                               <span class="etb-bar-bullet etb-bar-bullet-pickup"></span>
@@ -2077,19 +2086,19 @@
                            </div>`
                         : `<div class="etb-route-line">
                                <span class="etb-bar-bullet etb-bar-bullet-pickup"></span>
-                               <span>${escapeHtml(pickupVal) || '—'}</span>
+                               <span style="color: var(--etb-text-primary);">${escapeHtml(pickupVal) || '—'}</span>
                            </div>
                            <div class="etb-route-line">
                                <span class="etb-bar-bullet etb-bar-bullet-dropoff"></span>
-                               <span>${escapeHtml(dropoffVal) || '—'}</span>
+                               <span style="color: var(--etb-text-primary);">${escapeHtml(dropoffVal) || '—'}</span>
                            </div>`;
 
                     dynamicContentEl.innerHTML = `
                         <div class="etb-bar-col1" style="display: flex; flex-direction: column; justify-content: center; flex-shrink: 0;">
                             <div class="etb-bar-v-title" style="white-space: nowrap;">
-                                <strong style="color: var(--etb-text-primary, #ffffff); font-size: 15px;">${escapeHtml(carName)}</strong>
+                                <strong style="color: var(--etb-text-primary); font-size: 15px;">${escapeHtml(carName)}</strong>
                             </div>
-                            <div class="etb-bar-pax-bag" style="color: var(--etb-text-secondary, #94a3b8); font-size: 11.5px; margin-top: 3px;">
+                            <div class="etb-bar-pax-bag" style="color: var(--etb-text-secondary); font-size: 11.5px; margin-top: 3px;">
                                 <span>${escapeHtml(maxPax)} ${etbT('Pax')} • ${escapeHtml(maxBag)} ${etbT('Luggage')}</span>
                             </div>
                         </div>
@@ -2098,16 +2107,14 @@
                         <div class="etb-bar-route-info">
                             <div class="etb-route-line etb-route-date" style="margin-bottom: 2px;">
                                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--etb-accent-gold, #fbac18)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
-                                <span>${formattedDateTime}</span>
+                                <span style="color: var(--etb-text-secondary);">${formattedDateTime}</span>
                             </div>
                             ${routeHtml}
                         </div>
 
                         <div class="etb-bar-col2" style="display: flex; flex-direction: column; justify-content: center;">
                             <div class="etb-bar-price">${priceHtml}</div>
-                            ${!isCarQuote ? `<div class="etb-bar-sub" style="color: var(--etb-text-secondary, #5d5d5d); font-size: 11px; text-transform: uppercase;">
-                                ${currentMode === 'hourly' ? etbT('Hourly Charter') : etbT('All Inclusive (Fixed rate)')}
-                            </div>` : ''}
+                            ${subHtml}
                         </div>
                     `;
                 }
@@ -2424,7 +2431,7 @@
                 dynamicContentEl.innerHTML = `
                     <div class="etb-bar-col1" style="display: flex; flex-direction: column; justify-content: center; flex-shrink: 0;">
                         <div class="etb-bar-v-title" style="white-space: nowrap;">
-                            <strong style="color: var(--etb-text-primary, #ffffff); font-size: 15px; letter-spacing: 0.02em;">
+                            <strong style="color: var(--etb-text-primary); font-size: 15px; letter-spacing: 0.02em;">
                                 ${etbT('%s Scheduled Transfers').replace('%s', cartTrips.length)}
                             </strong>
                         </div>
@@ -2435,7 +2442,7 @@
                                 ? '<span style="color: var(--etb-accent-gold, #fbac18); font-size: 22px; font-weight: 800;">' + etbT('Custom Quote') + '</span>' 
                                 : `<span style="color: var(--etb-accent-gold, #fbac18); font-size: 28px; font-weight: 900; letter-spacing: -0.5px;">${cumulativeTotal.toFixed(0)} <span style="font-size: 18px;">${currency}</span></span>`}
                         </div>
-                        ${!hasCustomQuoteInCart ? `<div class="etb-bar-sub" style="color: var(--etb-text-secondary, #94a3b8); font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em;">
+                        ${!hasCustomQuoteInCart ? `<div class="etb-bar-sub" style="color: var(--etb-text-secondary); font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em;">
                             ${etbT('Fixed All-Inclusive Rate')}
                         </div>` : ''}
                     </div>
