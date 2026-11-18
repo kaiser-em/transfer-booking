@@ -1082,36 +1082,57 @@ html, body {
     color: var(--etb-accent-gold, #fbac18) !important;
 }
 
-/* Booker / assistant fields : couleur #b3532b, labels en capital */
-[data-etb-theme="light"] #etb-guest-booker-fields h4 {
+/* Booker / assistant fields : styles globaux (dark + light) */
+#etb-guest-booker-fields h4 {
     font-weight: 800 !important;
-    color: #b3532b !important;
     text-transform: capitalize !important;
 }
 
-[data-etb-theme="light"] #etb-guest-booker-fields label {
+#etb-guest-booker-fields label {
     text-transform: capitalize !important;
     font-weight: 600 !important;
+}
+
+#etb-guest-booker-fields input::placeholder {
+    opacity: 1 !important;
+}
+
+/* Booker / assistant fields : couleurs uniquement en light mode */
+[data-etb-theme="light"] #etb-guest-booker-fields h4 {
+    color: #b3532b !important;
+}
+
+[data-etb-theme="light"] #etb-guest-booker-fields label {
     color: #0d0d0d !important;
 }
 
 [data-etb-theme="light"] #etb-guest-booker-fields input::placeholder {
     color: #5d5d5d !important;
-    opacity: 1 !important;
 }
 
 [data-etb-theme="light"] #etb-guest-booker-fields input:-webkit-autofill::placeholder {
     color: #5d5d5d !important;
 }
 
-/* Passenger Information section : h4 et icône en #b3532b */
-[data-etb-theme="light"] .etb-checkout-card-header h4 {
-    color: #b3532b !important;
+/* Passenger Information section : styles globaux (dark + light) */
+.etb-checkout-card-header h4 {
     font-weight: 800 !important;
     text-transform: capitalize !important;
 }
 
+/* Passenger Information section : couleurs uniquement en light mode */
+[data-etb-theme="light"] .etb-checkout-card-header h4 {
+    color: #b3532b !important;
+}
+
 [data-etb-theme="light"] .etb-checkout-card-header .etb-chk-badge-icon svg {
+    color: #b3532b !important;
+    fill: #b3532b !important;
+}
+
+/* Summary specs : icônes en #b3532b (tous thèmes) */
+.etb-chk-summary-specs svg,
+.etb-chk-summary-specs path {
     color: #b3532b !important;
     fill: #b3532b !important;
 }
@@ -1881,23 +1902,23 @@ html, body {
     caret-color: #0f172a !important;
 }
 
-/* Email et téléphone : même hauteur exactement dans la grille */
-[data-etb-theme="light"] .etb-chk-grid-2 .etb-floating-field {
+/* Email et téléphone : même hauteur exactement dans la grille (tous thèmes) */
+.etb-chk-grid-2 .etb-floating-field {
     min-height: 62px !important;
     height: 62px !important;
 }
 
-[data-etb-theme="light"] .etb-chk-grid-2 .etb-floating-field input,
-[data-etb-theme="light"] .etb-chk-grid-2 .etb-floating-field .iti input {
+.etb-chk-grid-2 .etb-floating-field input,
+.etb-chk-grid-2 .etb-floating-field .iti input {
     height: 100% !important;
     padding: 0 !important;
 }
 
-[data-etb-theme="light"] .etb-chk-grid-2 .etb-floating-field .iti input {
+.etb-chk-grid-2 .etb-floating-field .iti input {
     padding-left: 90px !important; /* espace pour le drapeau téléphone */
 }
 
-[data-etb-theme="light"] .etb-chk-grid-2 .etb-floating-field input:not([type="tel"]) {
+.etb-chk-grid-2 .etb-floating-field input:not([type="tel"]) {
     padding-left: 0 !important;
 }
 
