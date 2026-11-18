@@ -1082,25 +1082,38 @@ html, body {
     color: var(--etb-accent-gold, #fbac18) !important;
 }
 
-/* Booker / assistant fields : contraste et labels en minuscules */
+/* Booker / assistant fields : couleur #b3532b, labels en capital */
 [data-etb-theme="light"] #etb-guest-booker-fields h4 {
     font-weight: 800 !important;
-    color: var(--etb-text-primary, #0d0d0d) !important;
+    color: #b3532b !important;
+    text-transform: capitalize !important;
 }
 
 [data-etb-theme="light"] #etb-guest-booker-fields label {
-    text-transform: lowercase !important;
+    text-transform: capitalize !important;
     font-weight: 600 !important;
-    color: var(--etb-text-primary, #0d0d0d) !important;
+    color: #0d0d0d !important;
 }
 
 [data-etb-theme="light"] #etb-guest-booker-fields input::placeholder {
-    color: var(--etb-text-secondary, #5d5d5d) !important;
+    color: #5d5d5d !important;
     opacity: 1 !important;
 }
 
 [data-etb-theme="light"] #etb-guest-booker-fields input:-webkit-autofill::placeholder {
-    color: var(--etb-text-secondary, #5d5d5d) !important;
+    color: #5d5d5d !important;
+}
+
+/* Passenger Information section : h4 et icône en #b3532b */
+[data-etb-theme="light"] .etb-checkout-card-header h4 {
+    color: #b3532b !important;
+    font-weight: 800 !important;
+    text-transform: capitalize !important;
+}
+
+[data-etb-theme="light"] .etb-checkout-card-header .etb-chk-badge-icon svg {
+    color: #b3532b !important;
+    fill: #b3532b !important;
 }
 
 /* ==========================================================================
