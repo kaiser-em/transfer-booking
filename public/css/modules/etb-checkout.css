@@ -1073,6 +1073,15 @@ html, body {
     color: #e65a15 !important;
 }
 
+/* Lien retour "Edit Ride Details" : contraste renforcé en light mode */
+[data-etb-theme="light"] .etb-checkout-back-link {
+    color: var(--etb-text-primary, #0d0d0d) !important;
+}
+
+[data-etb-theme="light"] .etb-checkout-back-link:hover {
+    color: var(--etb-accent-gold, #fbac18) !important;
+}
+
 /* ==========================================================================
    MODULE DE PAIEMENT SÉCURISÉ EDEN CAB / STRIPE (ÉTAPE 2)
    ========================================================================== */
