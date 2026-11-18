@@ -34,6 +34,115 @@
         return text;
     };
 
+    // Montant à 2 décimales, séparateur local (virgule en FR).
+    const etbMoney = function (value) {
+        const n = Number(value);
+        const safe = isFinite(n) ? n : 0;
+        const str = (Math.round(safe * 100) / 100).toFixed(2);
+        return (typeof etbI18n !== 'undefined' && etbI18n.lang === 'fr') ? str.replace('.', ',') : str;
+    };
+
+    /**
+     * Prix d'une carte véhicule Kymark — présentation type « reçu » :
+     *
+     *   Base fare                       217.00 €
+     *   Cannes Lions | June 19-27, 2027 +81.38 €
+     *   ────────────────────────────────────────
+     *   TOTAL                          298.38 €  [ Select ]
+     *
+     * La légende (TOTAL / all inclusive) occupe la gauche, le montant et le
+     * bouton la droite : aucune place perdue, aucun débordement possible.
+     * Gère les véhicules « Upon Request » (badge à la place de la légende).
+     *
+     * @param {HTMLElement} card     Carte véhicule
+     * @param {Object}      item     { price, base_price, surge: { applied: [...] } }
+     * @param {string}      currency Symbole monétaire
+     * @param {Object}      [opts]   { uponRequest: bool, note: string }
+     */
+    const renderKymarkPrice = function (card, item, currency, opts) {
+        opts = opts || {};
+        const uponRequest = !!opts.uponRequest;
+        const footer    = card.querySelector('.etb-quick-card-footer');
+        const priceBox  = card.querySelector('.etb-quick-price-display');
+        const detailBox = card.querySelector('.etb-quick-price-detail');
+
+        // Layout dédié aux cartes Kymark.
+        if (footer) footer.classList.add('etb-quick-card-footer--kymark');
+
+        const total     = Number(item.price) || 0;
+        const base      = (item.base_price !== undefined && item.base_price !== null)
+            ? Number(item.base_price) : total;
+        const rules     = (item.surge && Array.isArray(item.surge.applied)) ? item.surge.applied : [];
+        const hasSurge  = rules.length > 0 && base > 0 && total > base;
+
+        // En période de majoration, le bouton Select est masqué : le détail du
+        // prix (base + majoration + total) occupe toute la largeur de la carte.
+        // La carte reste cliquable pour sélectionner le véhicule.
+        if (footer) footer.classList.toggle('etb-quick-card-footer--surged', hasSurge);
+
+        let breakdown = card.querySelector('.etb-quick-price-breakdown');
+
+        if (hasSurge) {
+            if (!breakdown && priceBox && priceBox.parentNode) {
+                breakdown = document.createElement('div');
+                breakdown.className = 'etb-quick-price-breakdown';
+                priceBox.parentNode.insertBefore(breakdown, priceBox);
+            }
+            if (breakdown) {
+                const ruleNames = rules.map(r => String(r.name || etbT('Surcharge')));
+                const labels = ruleNames.map(n => escapeHtml(n)).join(' · ');
+                breakdown.innerHTML =
+                    '<div class="etb-quick-price-row">' +
+                        '<span>' + etbT('Base fare') + '</span>' +
+                        '<span>' + etbMoney(base) + ' ' + currency + '</span>' +
+                    '</div>' +
+                    '<div class="etb-quick-price-row etb-quick-price-row--surge">' +
+                        '<span title="' + escapeHtml(ruleNames.join('\n')) + '">' + labels + '</span>' +
+                        '<span>+' + etbMoney(total - base) + ' ' + currency + '</span>' +
+                    '</div>';
+                breakdown.style.display = 'flex';
+            }
+        } else if (breakdown) {
+            breakdown.style.display = 'none';
+            breakdown.innerHTML = '';
+        }
+
+        if (priceBox) {
+            priceBox.classList.toggle('is-upon-request', uponRequest);
+
+            // Légende à gauche : badge « Upon Request » ou TOTAL / all inclusive.
+            let caption;
+            if (uponRequest) {
+                caption = '<span class="etb-quick-quote-badge">' + etbT('Upon Request') + '</span>';
+            } else {
+                caption = '<span class="etb-quick-total-caption">' +
+                              '<span class="etb-quick-total-label">' + etbT('Total') + '</span>' +
+                              (total > 0
+                                  ? '<span class="etb-quick-all-inclusive">' + etbT('All inclusive') + '</span>'
+                                  : '') +
+                          '</span>';
+            }
+
+            let amount = '';
+            if (total > 0) {
+                amount = '<span class="etb-quick-amount">' + etbMoney(total) + '</span>' +
+                         '<span class="etb-quick-currency">' + currency + '</span>';
+            }
+
+            priceBox.innerHTML = caption + amount;
+        }
+
+        if (detailBox) {
+            if (opts.note) {
+                detailBox.innerHTML = opts.note;
+                detailBox.style.display = 'block';
+            } else {
+                detailBox.style.display = 'none';
+                detailBox.innerHTML = '';
+            }
+        }
+    };
+
 
     // ==========================================================================
     // MOTEUR UNIVERSEL DE GESTION DARK / LIGHT MODE (INFAILLIBLE)
@@ -1285,11 +1394,8 @@
                         if (!item || !item.kymark_vehicle_id) return;
                         const targetCard = quickRoot.querySelector('[data-kymark-vehicle-id="' + String(item.kymark_vehicle_id) + '"]');
                         if (!targetCard) return;
-                        const kymarkPrice = Math.round(item.price || 0);
-                        const priceBox  = targetCard.querySelector('.etb-quick-price-display');
-                        const detailBox = targetCard.querySelector('.etb-quick-price-detail');
+                        const kymarkPrice = Math.round((Number(item.price) || 0) * 100) / 100;
                         const selBtn    = targetCard.querySelector('.etb-quick-select-btn');
-                        const allInclEl = targetCard.querySelector('.etb-quick-all-inclusive');
                         const isTransferQuoteOnly = targetCard.getAttribute('data-transfer-quote-only') === '1';
 
                         if (isTransferQuoteOnly) {
@@ -1297,35 +1403,18 @@
                             targetCard.dataset.calculatedPrice = kymarkPrice > 0 ? kymarkPrice : 'Custom Quote';
                             targetCard.dataset.isQuote = '0';
                             targetCard.dataset.isUponRequest = '1';
-                            if (priceBox) {
-                                priceBox.classList.add('is-upon-request');
-                                let priceHtml = '';
-                                if (kymarkPrice > 0) {
-                                    priceHtml = `<span class="etb-quick-amount">${kymarkPrice}</span> <span class="etb-quick-currency">${currency}</span>`;
-                                }
-                                priceHtml += ` <span class="etb-quick-quote-badge" style="vertical-align: middle; margin-left: 6px;">${etbT('Upon Request')}</span>`;
-                                priceBox.innerHTML = priceHtml;
-                            }
-                            if (detailBox) {
-                                detailBox.innerHTML = etbT('Price is indicative. Select to confirm availability & final quote.');
-                                detailBox.style.display = 'block';
-                            }
-                            if (allInclEl) allInclEl.style.display = 'none';
+                            renderKymarkPrice(targetCard, item, currency, {
+                                uponRequest: true,
+                                note: etbT('Price is indicative. Select to confirm availability & final quote.')
+                            });
                             if (selBtn) selBtn.textContent = etbT('Request Quote');
                         } else if (kymarkPrice > 0) {
                             targetCard.dataset.calculatedPrice = kymarkPrice;
                             targetCard.dataset.isQuote = '0';
                             targetCard.dataset.isUponRequest = '0';
-                            if (priceBox) {
-                                priceBox.classList.remove('is-upon-request');
-                                priceBox.innerHTML = `<span class="etb-quick-amount">${kymarkPrice}</span> <span class="etb-quick-currency">${currency}</span> <span class="etb-quick-all-inclusive">${etbT('All inclusive')}</span>`;
-                            }
-                            if (detailBox) {
-                                detailBox.style.display = 'none';
-                                detailBox.innerHTML = '';
-                            }
+                            // Détail base + majoration, puis total en bas de carte.
+                            renderKymarkPrice(targetCard, item, currency);
                             if (selBtn) selBtn.textContent = etbT('Select');
-                            if (allInclEl) allInclEl.style.display = 'flex';
                         } else {
                             // Pas de tarif Kymark pour cette route et non marqué
                             // « Upon Request » → on masque simplement la carte
@@ -1568,46 +1657,26 @@
                             if (!item || !item.kymark_vehicle_id) return;
                             var targetCard = quickRoot.querySelector('[data-kymark-vehicle-id="' + String(item.kymark_vehicle_id) + '"]');
                             if (!targetCard) return;
-                            var kymarkPrice = Math.round(item.price || 0);
-                            var priceBox  = targetCard.querySelector('.etb-quick-price-display');
-                            var detailBox = targetCard.querySelector('.etb-quick-price-detail');
+                            var kymarkPrice = Math.round((Number(item.price) || 0) * 100) / 100;
                             var selBtn    = targetCard.querySelector('.etb-quick-select-btn');
-                            var allInclEl = targetCard.querySelector('.etb-quick-all-inclusive');
                             var isTransferQuoteOnly = targetCard.getAttribute('data-transfer-quote-only') === '1';
 
                             if (isTransferQuoteOnly) {
                                 targetCard.dataset.calculatedPrice = kymarkPrice > 0 ? kymarkPrice : 'Custom Quote';
                                 targetCard.dataset.isQuote = '0';
                                 targetCard.dataset.isUponRequest = '1';
-                                if (priceBox) {
-                                    priceBox.classList.add('is-upon-request');
-                                    var priceHtml = '';
-                                    if (kymarkPrice > 0) {
-                                        priceHtml = '<span class="etb-quick-amount">' + kymarkPrice + '</span> <span class="etb-quick-currency">' + currency + '</span>';
-                                    }
-                                    priceHtml += ' <span class="etb-quick-quote-badge" style="vertical-align: middle; margin-left: 6px;">' + etbT('Upon Request') + '</span>';
-                                    priceBox.innerHTML = priceHtml;
-                                }
-                                if (detailBox) {
-                                    detailBox.innerHTML = etbT('Price is indicative. Select to confirm availability & final quote.');
-                                    detailBox.style.display = 'block';
-                                }
-                                if (allInclEl) allInclEl.style.display = 'none';
+                                renderKymarkPrice(targetCard, item, currency, {
+                                    uponRequest: true,
+                                    note: etbT('Price is indicative. Select to confirm availability & final quote.')
+                                });
                                 if (selBtn) selBtn.textContent = etbT('Request Quote');
                             } else if (kymarkPrice > 0) {
                                 targetCard.dataset.calculatedPrice = kymarkPrice;
                                 targetCard.dataset.isQuote = '0';
                                 targetCard.dataset.isUponRequest = '0';
-                                if (priceBox) {
-                                    priceBox.classList.remove('is-upon-request');
-                                    priceBox.innerHTML = '<span class="etb-quick-amount">' + kymarkPrice + '</span> <span class="etb-quick-currency">' + currency + '</span> <span class="etb-quick-all-inclusive">' + etbT('All inclusive') + '</span>';
-                                }
-                                if (detailBox) {
-                                    detailBox.style.display = 'none';
-                                    detailBox.innerHTML = '';
-                                }
+                                // Détail base + majoration, puis total en bas de carte.
+                                renderKymarkPrice(targetCard, item, currency);
                                 if (selBtn) selBtn.textContent = etbT('Select');
-                                if (allInclEl) allInclEl.style.display = 'flex';
                             } else {
                                 // Pas de tarif Kymark et non marqué « Upon Request »
                                 // → on masque la carte (elle est déjà cachée plus haut),

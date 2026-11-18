@@ -840,7 +840,7 @@
 .etb-quick-card-footer {
     display: flex !important;
     justify-content: space-between !important;
-    align-items: center !important;
+    align-items: flex-end !important;
     gap: 10px !important;
     margin-top: auto !important;
 }
@@ -849,6 +849,91 @@
     display: flex !important;
     flex-direction: column !important;
     width: 100%;
+    /* Autorise la colonne prix à rétrécir : sans ça, un libellé long
+       (nom de règle Kymark) pousse le bouton hors de la carte. */
+    min-width: 0 !important;
+}
+
+/* ── Cartes Kymark : footer « reçu » ──────────────────────────────────────
+   Ligne 1 : base fare .................. montant
+   Ligne 2 : majoration ................. montant      (si surge)
+   Ligne 3 : TOTAL / all inclusive ...... montant  [Select]
+   La légende occupe la gauche, le montant et le bouton la droite :
+   aucun espace mort, aucun débordement possible.                          */
+.etb-quick-card-footer--kymark {
+    align-items: flex-end !important;
+}
+
+.etb-quick-card-footer--kymark .etb-quick-price-box {
+    width: auto !important;
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+    align-items: stretch !important;
+}
+
+.etb-quick-card-footer--kymark .etb-quick-price-display {
+    justify-content: flex-end !important;
+    align-items: center !important;
+    width: 100% !important;
+    gap: 5px !important;
+    letter-spacing: 0 !important;
+}
+
+.etb-quick-card-footer--kymark .etb-quick-amount {
+    font-size: 25px !important;
+    font-weight: 800 !important;
+    letter-spacing: -0.02em !important;
+    line-height: 1 !important;
+    font-variant-numeric: tabular-nums !important;
+}
+
+.etb-quick-card-footer--kymark .etb-quick-currency {
+    font-size: 15px !important;
+    font-weight: 600 !important;
+    opacity: 0.85 !important;
+}
+
+/* Légende de gauche : pousse le montant à droite */
+.etb-quick-card-footer--kymark .etb-quick-total-caption {
+    margin-right: auto !important;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 1px !important;
+    line-height: 1.15 !important;
+    text-align: left !important;
+}
+
+.etb-quick-card-footer--kymark .etb-quick-total-label {
+    font-size: 9px !important;
+    font-weight: 800 !important;
+    letter-spacing: 0.12em !important;
+    text-transform: uppercase !important;
+    color: var(--etb-text-secondary, #94a3b8) !important;
+}
+
+.etb-quick-card-footer--kymark .etb-quick-all-inclusive {
+    font-size: 9px !important;
+    font-weight: 500 !important;
+    margin: 0 !important;
+    color: var(--etb-text-secondary, #94a3b8) !important;
+    opacity: 0.85 !important;
+}
+
+.etb-quick-card-footer--kymark .etb-quick-price-detail {
+    text-align: left !important;
+    margin-top: 5px !important;
+}
+
+/* Badge Upon Request : à la place de la légende, à gauche du montant */
+.etb-quick-card-footer--kymark .etb-quick-price-box .etb-quick-price-display .etb-quick-quote-badge {
+    margin: 0 auto 0 0 !important;
+    align-self: center !important;
+}
+
+/* Période de majoration : le bouton disparaît, le détail du prix occupe
+   toute la largeur (la carte reste cliquable pour sélectionner). */
+.etb-quick-card-footer--kymark.etb-quick-card-footer--surged .etb-quick-select-btn {
+    display: none !important;
 }
 
 .etb-quick-price-display {
@@ -881,6 +966,57 @@
     line-height: 1.3 !important;
 }
 
+/* Détail du prix Kymark : base + majoration(s), séparés du total par un filet */
+.etb-quick-price-breakdown {
+    display: none;
+    flex-direction: column !important;
+    gap: 2px !important;
+    margin: 0 0 7px 0 !important;
+    padding: 0 0 7px 0 !important;
+    border-bottom: 1px dashed rgba(148, 163, 184, 0.4) !important;
+    font-size: 11px !important;
+    line-height: 1.35 !important;
+    color: var(--etb-text-secondary, #94a3b8) !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow: hidden !important;
+}
+
+.etb-quick-price-row {
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: baseline !important;
+    gap: 8px !important;
+    max-width: 100% !important;
+}
+
+/* Le libellé peut être long (nom de la règle Kymark) : une ligne, tronquée,
+   le montant reste toujours entièrement visible à droite. */
+.etb-quick-price-row > span:first-child {
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+}
+
+.etb-quick-price-row > span:last-child {
+    flex: 0 0 auto !important;
+    font-variant-numeric: tabular-nums !important;
+    white-space: nowrap !important;
+    font-weight: 700 !important;
+    color: var(--etb-text-primary, #e2e8f0) !important;
+}
+
+.etb-quick-price-row--surge > span:first-child {
+    color: var(--etb-accent-gold, #fbac18) !important;
+    font-weight: 600 !important;
+}
+
+.etb-quick-price-row--surge > span:last-child {
+    color: var(--etb-accent-gold, #fbac18) !important;
+}
+
 .etb-quick-price-detail strong {
     color: var(--etb-text-primary, #ffffff) !important;
 }
@@ -908,6 +1044,8 @@
     display: inline-flex !important;
     align-items: center !important;
     justify-content: center !important;
+    flex: 0 0 auto !important;
+    align-self: flex-end !important;
     background: var(--etb-bg-input, #1e2638) !important;
     border: 1px solid var(--etb-border-input, #333f57) !important;
     color: var(--etb-text-primary, #ffffff) !important;

@@ -71,6 +71,8 @@ class ETB_I18n {
             'Luggage'                         => 'Bagages',
             'Bag'                             => 'Bag.',
             'All inclusive'                   => 'Tout inclus',
+            'Base fare'                       => 'Tarif de base',
+            'Surcharge'                       => 'Majoration',
             'Select'                          => 'Choisir',
             'Book this Trip'                  => 'Réserver ce trajet',
             'Add another trip'                => 'Ajouter un trajet',
