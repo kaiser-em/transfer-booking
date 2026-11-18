@@ -521,8 +521,6 @@
 
 .etb-quick-car-item.selected {
     border-color: var(--etb-accent-gold, #fbac18) !important;
-   
-    box-shadow: 0 0 0 2px var(--etb-accent-gold, #fbac18), 0 16px 40px rgba(251, 172, 24, 0.25) !important;
 }
 
 /* 2. Zone En-tête Héroïque : Plein écran sans bordure + Dégradé fondu */
