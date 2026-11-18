@@ -857,6 +857,8 @@ class ETB_Ajax {
         // Initialisation rétrocompatible : sera renseigné par la branche mono-trajet
         // (ou laissé vide en multi-trajets, où $combined_limo_ref fait foi).
         $limo_official_id = '';
+        // Numéro de trip Kymark pour la référence client (mono-trajet uniquement).
+        $kymark_trip_number = '';
 
         if ( $is_multi_trip_order && count( $order_trips ) > 1 ) {
             // ── MULTI-TRAJETS : ENVOI D'UNE RÉSERVATION PAR TRAJET DANS LIMOEXPRESS ──
@@ -1060,13 +1062,21 @@ class ETB_Ajax {
             }
 
             $limo_official_id  = get_post_meta( $booking_id, '_etb_limo_booking_id', true );
-            $kymark_official_id = get_post_meta( $booking_id, '_etb_kymark_booking_id', true );
-            $booking_ref       = ( ! empty( $limo_official_id ) && 'OK' !== $limo_official_id ) ? $limo_official_id :
-                                 ( ! empty( $kymark_official_id ) ? $kymark_official_id : ( '#' . $booking_id ) );
+            // Référence client = numéro de trip Kymark (affiché tel quel dans Kymark),
+            // sinon l'ID LimoExpress, sinon l'ID WP. Zéro changement pour LimoExpress.
+            $kymark_trip_number = ( class_exists( 'ETB_Kymark' ) && 'kymark' === $active_dispatcher )
+                ? ETB_Kymark::get_display_ref( $booking_id ) : '';
+            $booking_ref       = ! empty( $kymark_trip_number ) ? $kymark_trip_number :
+                                 ( ( ! empty( $limo_official_id ) && 'OK' !== $limo_official_id ) ? $limo_official_id : ( '#' . $booking_id ) );
         }
 
-        // Mise à jour du titre du dossier WordPress avec la référence officielle LimoExpress
-        if ( ! empty( $limo_official_id ) && 'OK' !== $limo_official_id ) {
+        // Mise à jour du titre du dossier WordPress avec la référence officielle du dispatcher
+        if ( ! empty( $kymark_trip_number ) ) {
+            wp_update_post( array(
+                'ID'         => $booking_id,
+                'post_title' => sprintf( 'Mission #%s - %s (%s)', $kymark_trip_number, $full_name, $date ),
+            ) );
+        } elseif ( ! empty( $limo_official_id ) && 'OK' !== $limo_official_id ) {
             wp_update_post( array(
                 'ID'         => $booking_id,
                 'post_title' => sprintf( 'Mission #%s - %s (%s)', $limo_official_id, $full_name, $date ),
@@ -2205,9 +2215,11 @@ class ETB_Ajax {
         }
         $paid_stamp .= "═══════════════════════════════\n\n";
 
-        // Nettoyage et uniformisation de la note avec la référence officielle LimoExpress
+        // Nettoyage et uniformisation de la note avec la référence officielle du dispatcher
         $paid_limo_id = get_post_meta( $booking_id, '_etb_limo_booking_id', true );
-        $final_ref    = ( ! empty( $paid_limo_id ) && 'OK' !== $paid_limo_id ) ? ( '#' . $paid_limo_id ) : ( '#' . $booking_id );
+        $kymark_paid_ref = ( class_exists( 'ETB_Kymark' ) ) ? ETB_Kymark::get_display_ref( $booking_id ) : '';
+        $final_ref    = ! empty( $kymark_paid_ref ) ? ( '#' . $kymark_paid_ref )
+                        : ( ( ! empty( $paid_limo_id ) && 'OK' !== $paid_limo_id ) ? ( '#' . $paid_limo_id ) : ( '#' . $booking_id ) );
 
         $raw_note   = get_post_meta( $booking_id, '_etb_note', true );
         $clean_note = preg_replace( '/[=═]{1,}\s*[⏳🚨✅].*?[=═]{1,}.*?[=═]{5,}[\r\n\s]*/us', '', (string) $raw_note );
@@ -2479,7 +2491,9 @@ class ETB_Ajax {
         $company_name   = get_bloginfo( 'name' );
 
         $paid_limo_id   = get_post_meta( $booking_id, '_etb_limo_booking_id', true );
-        $final_ref      = ( ! empty( $paid_limo_id ) && 'OK' !== $paid_limo_id ) ? $paid_limo_id : ( '#' . $booking_id );
+        $kymark_paid_ref = ( class_exists( 'ETB_Kymark' ) ) ? ETB_Kymark::get_display_ref( $booking_id ) : '';
+        $final_ref      = ! empty( $kymark_paid_ref ) ? $kymark_paid_ref
+                        : ( ( ! empty( $paid_limo_id ) && 'OK' !== $paid_limo_id ) ? $paid_limo_id : ( '#' . $booking_id ) );
         $is_multi_order = ( '1' === (string) get_post_meta( $booking_id, '_etb_is_multi_trip', true ) );
         $paid_trips     = get_post_meta( $booking_id, '_etb_order_trips', true );
 
@@ -2742,7 +2756,9 @@ class ETB_Ajax {
             $formatted_dt    = $date_ts ? date( 'D, d M Y', $date_ts ) : $date;
 
             $limo_ref    = get_post_meta( $booking_id, '_etb_limo_booking_id', true );
-            $clean_ref   = ( ! empty( $limo_ref ) && 'OK' !== $limo_ref ) ? ltrim( $limo_ref, '#' ) : (string) $booking_id;
+            $kymark_rem_ref = ( class_exists( 'ETB_Kymark' ) ) ? ETB_Kymark::get_display_ref( $booking_id ) : '';
+            $clean_ref   = ! empty( $kymark_rem_ref ) ? $kymark_rem_ref
+                         : ( ( ! empty( $limo_ref ) && 'OK' !== $limo_ref ) ? ltrim( $limo_ref, '#' ) : (string) $booking_id );
             $booking_ref = '#' . $clean_ref;
 
             $admin_email = ! empty( $gen_settings['admin_email'] ) && is_email( $gen_settings['admin_email'] )

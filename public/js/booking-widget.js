@@ -4855,7 +4855,9 @@
                 const cardholderVal = payRoot.querySelector('#etb-pay-cardholder')?.value.trim() || '';
                 const countryVal    = payRoot.querySelector('#etb-pay-card-country')?.value || 'FR';
                 const limoRefVal    = payRoot.querySelector('#etb-pay-limo-id')?.value;
-                const missionRef    = (limoRefVal && limoRefVal !== 'OK') ? ('#' + limoRefVal) : ('#' + bookingIdVal);
+                const kymarkRefVal  = payRoot.querySelector('#etb-pay-kymark-trip-number')?.value;
+                const missionRef    = (kymarkRefVal && kymarkRefVal !== '0') ? ('#' + kymarkRefVal)
+                                    : ((limoRefVal && limoRefVal !== 'OK') ? ('#' + limoRefVal) : ('#' + bookingIdVal));
 
                 // Validations obligatoires
                 if (!emailVal || !emailVal.includes('@')) {

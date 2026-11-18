@@ -108,6 +108,8 @@ if ( $has_valid_booking && ! $is_tampered ) {
     $flight_number   = get_post_meta( $booking_id, '_etb_flight_number', true );
     $waiting_sign    = get_post_meta( $booking_id, '_etb_waiting_board_text', true );
     $limo_id         = get_post_meta( $booking_id, '_etb_limo_booking_id', true ) ?: ( $pay_data['limo_id'] ?? '' );
+    // Référence client Kymark = numéro de trip Kymark (ex: 1016), '' si non applicable.
+    $kymark_trip_number = ( class_exists( 'ETB_Kymark' ) ) ? ETB_Kymark::get_display_ref( $booking_id ) : '';
 
     // Passagers et Bagages détaillés
     $pax_count       = absint( get_post_meta( $booking_id, '_etb_adults', true ) ?: 1 );
@@ -166,6 +168,7 @@ if ( $has_valid_booking && ! $is_tampered ) {
     $flight_number   = '';
     $waiting_sign    = '';
     $limo_id         = '';
+    $kymark_trip_number = '';
     $pax_count       = 1;
     $checked_luggage = 0;
     $cabin_bags      = 0;
@@ -230,7 +233,9 @@ $formatted_amount = number_format_i18n( $settled_amount, 2 ) . ' ' . $currency_s
             </div>
             <?php
             $settled_ref = get_post_meta( $booking_id, '_etb_limo_booking_id', true );
-            $display_settled_ref = ( ! empty( $settled_ref ) && 'OK' !== $settled_ref ) ? $settled_ref : ( '#' . $booking_id );
+            $kymark_settled_ref = ( class_exists( 'ETB_Kymark' ) ) ? ETB_Kymark::get_display_ref( $booking_id ) : '';
+            $display_settled_ref = ! empty( $kymark_settled_ref ) ? $kymark_settled_ref
+                : ( ( ! empty( $settled_ref ) && 'OK' !== $settled_ref ) ? $settled_ref : ( '#' . $booking_id ) );
             ?>
             <h2><?php echo esc_html( ETB_I18n::t( 'Mission Already Settled' ) ); ?></h2>
             <p>
@@ -504,7 +509,8 @@ $formatted_amount = number_format_i18n( $settled_amount, 2 ) . ' ' . $currency_s
 
                     <!-- Référence officielle unifiée de la mission -->
                     <?php 
-                    $raw_ref = ( ! empty( $limo_id ) && 'OK' !== $limo_id ) ? $limo_id : (string) $booking_id;
+                    $raw_ref = ! empty( $kymark_trip_number ) ? $kymark_trip_number
+                             : ( ( ! empty( $limo_id ) && 'OK' !== $limo_id ) ? $limo_id : (string) $booking_id );
                     $clean_display_ref = ltrim( $raw_ref, '#' );
                     ?>
                     <div style="font-size: 12px; color: var(--etb-text-secondary, #94a3b8); border-top: 1px dashed var(--etb-border-light, rgba(255,255,255,0.08)); padding-top: 12px;">
@@ -533,6 +539,7 @@ $formatted_amount = number_format_i18n( $settled_amount, 2 ) . ' ' . $currency_s
                         <input type="hidden" name="client_email" id="etb-pay-client-email" value="<?php echo esc_attr( $customer_email ); ?>">
                         <input type="hidden" name="client_phone" id="etb-pay-client-phone" value="<?php echo esc_attr( $customer_phone ); ?>">
                         <input type="hidden" name="limo_booking_id" id="etb-pay-limo-id" value="<?php echo esc_attr( $limo_id ); ?>">
+                        <input type="hidden" name="kymark_trip_number" id="etb-pay-kymark-trip-number" value="<?php echo esc_attr( $kymark_trip_number ); ?>">
 
                         <!-- 1. SÉLECTEUR D'ONGLETS : 3 MODES TOUJOURS VISIBLES -->
                         <div class="etb-pay-tabs-nav" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 22px;">

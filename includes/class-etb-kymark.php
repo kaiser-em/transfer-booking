@@ -590,6 +590,19 @@ class ETB_Kymark {
     }
 
     /**
+     * Référence client affichable pour une réservation : le numéro de trip Kymark
+     * (ex: 1016) si dispo, sinon '' (l'appelant retombe sur sa référence par défaut).
+     *
+     * @param int $booking_id ID du dossier WP.
+     * @return string Numéro de trip Kymark ou ''.
+     */
+    public static function get_display_ref( $booking_id ) {
+        $number = get_post_meta( absint( $booking_id ), '_etb_kymark_trip_number', true );
+        $number = trim( (string) $number );
+        return ( '' !== $number ) ? $number : '';
+    }
+
+    /**
      * Récupère ou crée le client voyageur dans Kymark
      */
     public static function get_or_create_client( $data, $settings, $booking_id = 0 ) {

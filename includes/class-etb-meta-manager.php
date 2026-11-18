@@ -872,21 +872,26 @@ class ETB_Meta_Manager {
         $status_message = '';
         $badge_color = '#15803d';
 
+        // Référence client : numéro de trip Kymark si dispo, sinon ID WP.
+        $client_ref = ( class_exists( 'ETB_Kymark' ) && ETB_Kymark::get_display_ref( $booking_id ) )
+            ? ETB_Kymark::get_display_ref( $booking_id )
+            : $booking_id;
+
         switch ( $new_status ) {
             case 'confirmed':
-                $subject        = sprintf( '✅ Your Booking #%d is Confirmed — %s', $booking_id, $company_name );
+                $subject        = sprintf( '✅ Your Booking #%s is Confirmed — %s', $client_ref, $company_name );
                 $status_title   = 'Reservation Confirmed';
                 $status_message = 'Your booking has been approved and locked in dispatch. Your chauffeur is allocated for your mission.';
                 $badge_color    = '#15803d';
                 break;
             case 'cancelled':
-                $subject        = sprintf( '❌ Your Booking #%d has been Cancelled — %s', $booking_id, $company_name );
+                $subject        = sprintf( '❌ Your Booking #%s has been Cancelled — %s', $client_ref, $company_name );
                 $status_title   = 'Reservation Cancelled';
                 $status_message = 'Your booking request has been cancelled. If you believe this is an error, please contact our dispatch team.';
                 $badge_color    = '#dc2626';
                 break;
             case 'completed':
-                $subject        = sprintf( '🏁 Your Ride #%d is Completed — %s', $booking_id, $company_name );
+                $subject        = sprintf( '🏁 Your Ride #%s is Completed — %s', $client_ref, $company_name );
                 $status_title   = 'Service Completed';
                 $status_message = 'Your chauffeur mission is now complete. Thank you for choosing us for your private transportation.';
                 $badge_color    = '#0284c7';
@@ -903,7 +908,7 @@ class ETB_Meta_Manager {
             . '<div style="max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.06);">'
             . '<div style="background: #0f172a; padding: 25px 30px;">'
             . '<h1 style="margin: 0; color: #fbac18; font-size: 20px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em;">' . esc_html( $company_name ) . '</h1>'
-            . '<p style="margin: 4px 0 0 0; font-size: 12px; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.08em;">Status Update — Dossier #' . $booking_id . '</p>'
+            . '<p style="margin: 4px 0 0 0; font-size: 12px; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.08em;">Status Update — Dossier #' . esc_html( $client_ref ) . '</p>'
             . '</div>'
             . '<div style="padding: 30px;">'
             . '<p style="font-size: 15px; margin-top: 0; margin-bottom: 16px;">Dear <strong>' . esc_html( $name ) . '</strong>,</p>'
@@ -912,7 +917,7 @@ class ETB_Meta_Manager {
             . '<p style="margin: 0; font-size: 13.5px; color: #334155;">' . esc_html( $status_message ) . '</p>'
             . '</div>'
             . '<table style="width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 13.5px;">'
-            . '<tr style="border-bottom: 1px solid #f1f5f9;"><td style="padding: 10px 0; color: #64748b;">Booking Reference:</td><td style="padding: 10px 0; text-align: right; font-weight: 700; color: #0f172a;">#' . $booking_id . '</td></tr>'
+            . '<tr style="border-bottom: 1px solid #f1f5f9;"><td style="padding: 10px 0; color: #64748b;">Booking Reference:</td><td style="padding: 10px 0; text-align: right; font-weight: 700; color: #0f172a;">#' . esc_html( $client_ref ) . '</td></tr>'
             . '<tr style="border-bottom: 1px solid #f1f5f9;"><td style="padding: 10px 0; color: #64748b;">Date & Time:</td><td style="padding: 10px 0; text-align: right; font-weight: 700; color: #0f172a;">' . esc_html( $datetime_display ) . '</td></tr>'
             . '<tr style="border-bottom: 2px solid #0f172a;"><td style="padding: 12px 0; font-size: 14px; font-weight: 700; color: #0f172a;">Total Fare:</td><td style="padding: 12px 0; text-align: right; font-size: 18px; font-weight: 800; color: #e65a15;">' . $formatted_total . '</td></tr>'
             . '</table>'
