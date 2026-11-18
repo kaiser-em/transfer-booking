@@ -2057,7 +2057,7 @@
                     } else if (isUponRequestCar) {
                         priceHtml = '<span style="color: var(--etb-accent-gold, #fbac18); font-size: 20px; font-weight: 800;">' + etbT('Upon Request') + '</span>';
                     } else {
-                        priceHtml = `<span style="color: var(--etb-accent-gold, #fbac18); font-size: 26px; font-weight: 900;">${carPrice} <span style="font-size: 18px;">${currency}</span></span>`;
+                        priceHtml = `<span style="color: var(--etb-text-primary); font-size: 26px; font-weight: 900;">${carPrice} <span style="font-size: 18px; color: var(--etb-text-primary);">${currency}</span></span>`;
                         subHtml = `<div class="etb-bar-sub" style="color: var(--etb-text-secondary, #5d5d5d); font-size: 11px; text-transform: uppercase;">
                                 ${currentMode === 'hourly' ? etbT('Hourly Charter') : etbT('All Inclusive (Fixed rate)')}
                             </div>`;
