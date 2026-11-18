@@ -1304,9 +1304,9 @@
 
 /* Adaptation Light Mode du badge "Upon Request" (Custom Quote) */
 [data-etb-theme="light"] .etb-quick-quote-badge {
-    background: rgba(230, 90, 21, 0.12) !important;
-    color: #b45309 !important;
-    border: 1px solid rgba(230, 90, 21, 0.35) !important;
+    background: var(--etb-brand-soft, rgba(251, 172, 24, 0.08)) !important;
+    color: var(--etb-brand-ink, #fbac18) !important;
+    border: 1px solid var(--etb-border-main, #e5e5e5) !important;
 }
 
 .etb-bar-route-info .etb-route-line strong{
@@ -1713,8 +1713,7 @@
 }
 
 [data-etb-theme="light"] button.etb-quick-clear-btn{
-    color: #858484 !important;
-   /* border: 1px solid #00000042 !important;*/
+    color: var(--etb-text-muted, #8f8f8f) !important;
 }
 
 
@@ -1990,14 +1989,16 @@
 
 /* Adaptation en Light Mode */
 [data-etb-theme="light"] #etb-bridge-trip-btn {
-    background: #ffffff !important;
-    border: 1.5px solid #d97706 !important;
-    color: #b45309 !important;
+    background: var(--etb-btn-secondary-bg, #f3f3f3) !important;
+    border: 1.5px solid var(--etb-border-main, #e5e5e5) !important;
+    color: var(--etb-btn-secondary-text, #0d0d0d) !important;
     /*box-shadow: 0 4px 14px rgba(217, 119, 6, 0.15) !important;*/
 }
 
 [data-etb-theme="light"] #etb-bridge-trip-btn:hover {
-    background: #fffbeb !important;
+    background: var(--etb-bg-hover, #ececec) !important;
+    color: var(--etb-brand-ink, #fbac18) !important;
+    border-color: #fbac18 !important;
 }
 
 /* ==========================================================================
@@ -2145,9 +2146,9 @@
     background: var(--etb-accent-gold, #fbac18) !important;
 }
 
-/* Light Mode : vert plus soutenu pour rester lisible sur fond clair */
+/* Light Mode : couleur primaire (texte) pour rester lisible sur fond clair */
 [data-etb-theme="light"] .etb-bar-bullet-pickup {
-    background: #15803d !important;
+    background: var(--etb-success, #16865d) !important;
 }
 
 .etb-route-date {
@@ -2323,9 +2324,9 @@
 
 
 [data-etb-theme="light"] #etb-quick-upon-request-notice{
-    background: rgba(230, 90, 21, 0.12) !important;
-    border-color: #fbac18 !important;
-    color: #b45309 !important;
+    background: var(--etb-bg-surface, #f9f9f9) !important;
+    border-color: var(--etb-border-main, #e5e5e5) !important;
+    color: var(--etb-text-primary, #0d0d0d) !important;
     font-weight: bold;
 }
 

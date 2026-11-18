@@ -72,7 +72,7 @@
 }
 
 [data-etb-theme="light"] #etb-quick-widget-app .etb-quick-title-thinking {
-    background-image: linear-gradient(90deg, #94a3b8 0%, #334155 22%, #b45309 32%, #b45309 64%, #475569 80%, #94a3b8 100%) !important;
+    background-image: linear-gradient(90deg, var(--etb-text-muted, #8f8f8f) 0%, var(--etb-text-secondary, #5d5d5d) 22%, #fbac18 32%, #fbac18 64%, var(--etb-text-secondary, #5d5d5d) 80%, var(--etb-text-muted, #8f8f8f) 100%) !important;
 }
 
 /* --------------------------------------------------------------------------

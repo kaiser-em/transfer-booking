@@ -352,25 +352,25 @@ html, body {
 
 /* Adaptation en Light Mode */
 [data-etb-theme="light"] .etb-chk-seat-text strong {
-    color: #0f172a !important;
+    color: var(--etb-text-primary, #0d0d0d) !important;
 }
 
 [data-etb-theme="light"] .etb-chk-seat-age {
-    color: #64748b !important;
+    color: var(--etb-text-muted, #8f8f8f) !important;
 }
 
 [data-etb-theme="light"] .etb-chk-seat-pricing-row {
-    border-top-color: #e2e8f0 !important;
+    border-top-color: var(--etb-border-main, #e5e5e5) !important;
 }
 
 [data-etb-theme="light"] .etb-chk-seat-badge-free {
-    background: #dcfce7 !important;
-    border-color: #86efac !important;
-    color: #15803d !important;
+    background: var(--etb-success-bg, rgba(22, 134, 93, 0.1)) !important;
+    border-color: var(--etb-success, #16865d) !important;
+    color: var(--etb-success, #16865d) !important;
 }
 
 [data-etb-theme="light"] .etb-chk-seat-badge-extra {
-    color: #d97706 !important;
+    color: var(--etb-warning, #d97706) !important;
 }
 
 .etb-chk-qty-control {
@@ -821,58 +821,61 @@ html, body {
 
 
 /* ==========================================================================
-   ADAPTATION COMPLÈTE DU CHECKOUT EN LIGHT MODE VIP
+   ADAPTATION COMPLÈTE DU CHECKOUT EN LIGHT MODE
+   Palette neutre : blanc / gris très clairs, texte quasi noir.
+   L'accent or et les états (succès, avertissement, erreur) sont conservés.
    ========================================================================== */
 [data-etb-theme="light"] .etb-checkout-wrapper {
-    color: #0f172a !important;
+    color: var(--etb-text-primary, #0d0d0d) !important;
 }
 
-/* 1. Titre et cartes principales à gauche (Doux et velouté) */
+/* 1. Titre et cartes principales à gauche */
 [data-etb-theme="light"] .etb-checkout-page-title {
-    color: #1e293b !important; /* Anthracite noble au lieu de noir dur */
+    color: var(--etb-text-primary, #0d0d0d) !important;
 }
 
 [data-etb-theme="light"] .etb-checkout-card {
-    background: #ffffff !important;
-    border: 1px solid #e2e8f0 !important;
-    box-shadow: 0 4px 20px rgba(15, 23, 42, 0.04) !important;
+    background: var(--etb-bg-card, #ffffff) !important;
+    border: 1px solid var(--etb-border-main, #e5e5e5) !important;
+    box-shadow: 0 4px 20px rgba(13, 13, 13, 0.04) !important;
 }
 
 [data-etb-theme="light"] .etb-checkout-card-header {
-    border-bottom: 1px solid #f1f5f9 !important;
+    border-bottom: 1px solid var(--etb-border-main, #e5e5e5) !important;
 }
 
 [data-etb-theme="light"] .etb-checkout-card-header h3 {
-    color: #1e293b !important; /* Anthracite noble */
+    color: var(--etb-text-primary, #0d0d0d) !important;
 }
 
 [data-etb-theme="light"] .etb-checkout-card-header p {
-    color: #475569 !important; /* Gris chaud lisible */
+    color: var(--etb-text-secondary, #5d5d5d) !important;
 }
 
 /* 2. Boutons radio Myself / Guest & Boîtes intérieures */
 [data-etb-theme="light"] .etb-chk-radio-pill {
-    background: #f1f5f9 !important;
-    border: 1.5px solid #cbd5e1 !important;
-    color: #475569 !important;
+    background: var(--etb-bg-surface, #f9f9f9) !important;
+    border: 1.5px solid var(--etb-border-main, #e5e5e5) !important;
+    color: var(--etb-text-secondary, #5d5d5d) !important;
 }
 
 [data-etb-theme="light"] .etb-chk-radio-pill:hover {
+    background: var(--etb-bg-hover, #ececec) !important;
     border-color: #fbac18 !important;
-    color: #0f172a !important;
+    color: var(--etb-text-primary, #0d0d0d) !important;
 }
 
 [data-etb-theme="light"] .etb-chk-radio-pill.active {
     background: rgba(251, 172, 24, 0.15) !important;
     border-color: #fbac18 !important;
-    color: #b45309 !important;
+    color: var(--etb-brand-ink, #b45309) !important;
 }
 
 [data-etb-theme="light"] .etb-chk-child-seats-box,
 [data-etb-theme="light"] .etb-chk-capacity-box,
 [data-etb-theme="light"] .etb-payment-mandate-box {
-    background: #f8fafc !important;
-    border: 1px solid #e2e8f0 !important;
+    background: var(--etb-bg-surface, #f9f9f9) !important;
+    border: 1px solid var(--etb-border-main, #e5e5e5) !important;
 }
 
 /* Neutralisation du blanc forcé sur les textes et balises strong en mode clair */
@@ -884,33 +887,33 @@ html, body {
 [data-etb-theme="light"] .etb-chk-seat-info span,
 [data-etb-theme="light"] .etb-mandate-label span,
 [data-etb-theme="light"] .etb-mandate-label strong {
-    color: #1e293b !important;
+    color: var(--etb-text-primary, #0d0d0d) !important;
     background: transparent !important;
 }
 
 [data-etb-theme="light"] .etb-chk-seat-info p,
 [data-etb-theme="light"] .etb-chk-cap-label small,
 [data-etb-theme="light"] .etb-mandate-legal-text {
-    color: #64748b !important;
+    color: var(--etb-text-muted, #8f8f8f) !important;
 }
 
 /* Boutons +/- de quantité */
 [data-etb-theme="light"] .etb-chk-qty-control {
-    background: var(--etb-bg-input, #e2e8f0) !important;
-    border: 1px solid #cbd5e1 !important;
+    background: var(--etb-bg-input, #ffffff) !important;
+    border: 1px solid var(--etb-border-input, #e5e5e5) !important;
 }
 
 [data-etb-theme="light"] .etb-chk-qty-btn {
-    color: #0f172a !important;
+    color: var(--etb-text-primary, #0d0d0d) !important;
 }
 
 [data-etb-theme="light"] .etb-chk-qty-control input {
-    color: #0f172a !important;
+    color: var(--etb-text-primary, #0d0d0d) !important;
 }
 
 /* 3. Inputs de saisie : UNIFORMISATION STRICTE DE TOUS LES CHAMPS EN LIGHT MODE */
 [data-etb-theme="light"] .etb-chk-field label {
-    color: #334155 !important;
+    color: var(--etb-text-secondary, #5d5d5d) !important;
     font-weight: 700 !important;
 }
 
@@ -920,11 +923,10 @@ html, body {
 [data-etb-theme="light"] .etb-chk-field textarea,
 [data-etb-theme="light"] .etb-stripe-mount-box,
 [data-etb-theme="light"] .etb-chk-field .etb-custom-select-trigger {
-    background: #ffffff !important;
-    border: 1px solid #8b8b8b !important;
+    background: var(--etb-bg-input, #ffffff) !important;
+    border: 1px solid var(--etb-border-input, #e5e5e5) !important;
     border-radius: 10px !important;
-    color: #1e293b !important;
-    /*box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04) !important;*/
+    color: var(--etb-text-primary, #0d0d0d) !important;
     transition: all 0.2s ease !important;
 }
 
@@ -933,7 +935,7 @@ html, body {
 [data-etb-theme="light"] .etb-chk-field textarea:hover,
 [data-etb-theme="light"] .etb-stripe-mount-box:hover,
 [data-etb-theme="light"] .etb-chk-field .etb-custom-select-trigger:hover {
-    border-color: #94a3b8 !important;
+    border-color: rgba(13, 13, 13, 0.28) !important;
 }
 
 /* Focus harmonisé (liseré or ambré subtil) */
@@ -941,119 +943,108 @@ html, body {
 [data-etb-theme="light"] .etb-chk-field textarea:focus,
 [data-etb-theme="light"] .etb-stripe-mount-box.StripeElement--focus,
 [data-etb-theme="light"] .etb-chk-field .etb-custom-select.is-open .etb-custom-select-trigger {
-    background: #ffffff !important;
+    background: var(--etb-bg-input, #ffffff) !important;
     border-color: #fbac18 !important;
     box-shadow: 0 0 0 3px rgba(251, 172, 24, 0.15) !important;
 }
 
 [data-etb-theme="light"] .etb-stripe-mount-box.StripeElement--invalid {
-    border-color: #f87171 !important;
-}
-
-[data-etb-theme="light"] .etb-chk-field input:hover,
-[data-etb-theme="light"] .etb-chk-field textarea:hover {
-    border-color: #94a3b8 !important;
-}
-
-[data-etb-theme="light"] .etb-chk-field input:focus,
-[data-etb-theme="light"] .etb-chk-field textarea:focus {
-    background: #ffffff !important;
-    border-color: #fbac18 !important;
-    box-shadow: 0 0 0 3px rgba(251, 172, 24, 0.15) !important;
+    border-color: var(--etb-danger, #dc2626) !important;
 }
 
 [data-etb-theme="light"] .etb-chk-hint {
-    color: #64748b !important;
+    color: var(--etb-text-muted, #8f8f8f) !important;
 }
 
 /* 4. Étape 2 : Paiement EDEN CAB */
 [data-etb-theme="light"] .etb-payment-company-header {
-    border-bottom: 1px solid #e2e8f0 !important;
+    border-bottom: 1px solid var(--etb-border-main, #e5e5e5) !important;
 }
 
 [data-etb-theme="light"] .etb-payment-brand-title {
-    color: #0f172a !important;
+    color: var(--etb-text-primary, #0d0d0d) !important;
 }
 
 [data-etb-theme="light"] .etb-payment-company-address p {
-    color: #64748b !important;
+    color: var(--etb-text-muted, #8f8f8f) !important;
 }
 
 [data-etb-theme="light"] .etb-payment-section-title {
-    color: #0f172a !important;
+    color: var(--etb-text-primary, #0d0d0d) !important;
 }
 
 
 [data-etb-theme="light"] .etb-brand-badge {
-    background: #e2e8f0 !important;
-    border-color: #cbd5e1 !important;
-    color: #475569 !important;
+    background: var(--etb-bg-elevated, #f3f3f3) !important;
+    border-color: var(--etb-border-main, #e5e5e5) !important;
+    color: var(--etb-text-secondary, #5d5d5d) !important;
 }
 
-/* 5. Colonne Droite : Ride Summary (Doux, équilibré et chaleureux) */
+/* 5. Colonne Droite : Ride Summary */
 [data-etb-theme="light"] .etb-chk-sticky-card {
-    background: #ffffff !important;
-    border: 1px solid #e2e8f0 !important;
-    box-shadow: 0 4px 20px rgba(15, 23, 42, 0.04) !important;
+    background: var(--etb-bg-card, #ffffff) !important;
+    border: 1px solid var(--etb-border-main, #e5e5e5) !important;
+    box-shadow: 0 4px 20px rgba(13, 13, 13, 0.04) !important;
 }
 
 [data-etb-theme="light"] .etb-chk-summary-title {
-    color: #1e293b !important; /* Ardoise doux */
-    border-bottom: 1px solid #f1f5f9 !important;
+    color: var(--etb-text-primary, #0d0d0d) !important;
+    border-bottom: 1px solid var(--etb-border-main, #e5e5e5) !important;
 }
 
 [data-etb-theme="light"] .etb-chk-summary-vehicle-meta h4 {
-    color: #1e293b !important;
+    color: var(--etb-text-primary, #0d0d0d) !important;
 }
 
 [data-etb-theme="light"] .etb-chk-summary-specs {
-    color: #475569 !important;
+    color: var(--etb-text-secondary, #5d5d5d) !important;
 }
 
 [data-etb-theme="light"] .etb-chk-summary-specs strong {
-    color: #1e293b !important;
+    color: var(--etb-text-primary, #0d0d0d) !important;
 }
 
 /* Lignes Pickup, Dropoff, Date */
 [data-etb-theme="light"] .etb-chk-timeline-text small {
-    color: #64748b !important; /* Plus visible que le gris pâle 94a3b8 */
+    color: var(--etb-text-muted, #8f8f8f) !important;
     font-weight: 700 !important;
 }
 
 [data-etb-theme="light"] .etb-chk-timeline-text strong {
-    color: #1e293b !important;
+    color: var(--etb-text-primary, #0d0d0d) !important;
 }
 
-/* Garanties (lisibles sans être agressives) */
+/* Garanties */
 [data-etb-theme="light"] .etb-chk-guarantees {
-    background: #f8fafc !important;
-    border: 1px solid #f1f5f9 !important;
+    background: var(--etb-bg-surface, #f9f9f9) !important;
+    border: 1px solid var(--etb-border-main, #e5e5e5) !important;
 }
 
 [data-etb-theme="light"] .etb-chk-guarantee-line {
-    color: #334155 !important; /* Gris anthracite parfaitement lisible */
+    color: var(--etb-text-secondary, #5d5d5d) !important;
 }
 
 /* Boutons Pourboire (None, 10%, 15%, 20%) */
 [data-etb-theme="light"] .etb-chk-tip-section {
-    background: #f8fafc !important;
-    border: 1px solid #e2e8f0 !important;
+    background: var(--etb-bg-surface, #f9f9f9) !important;
+    border: 1px solid var(--etb-border-main, #e5e5e5) !important;
 }
 
 [data-etb-theme="light"] .etb-chk-tip-title {
-    color: #475569 !important;
+    color: var(--etb-text-secondary, #5d5d5d) !important;
 }
 
 
 [data-etb-theme="light"] .etb-tip-pill {
-    background: #ffffff !important;
-    border: 1.5px solid #cbd5e1 !important;
-    color: #334155 !important;
+    background: var(--etb-bg-card, #ffffff) !important;
+    border: 1.5px solid var(--etb-border-main, #e5e5e5) !important;
+    color: var(--etb-text-secondary, #5d5d5d) !important;
 }
 
 [data-etb-theme="light"] .etb-tip-pill:hover {
+    background: var(--etb-bg-hover, #ececec) !important;
     border-color: #fbac18 !important;
-    color: #0f172a !important;
+    color: var(--etb-text-primary, #0d0d0d) !important;
 }
 
 [data-etb-theme="light"] .etb-tip-pill.active {
@@ -1066,16 +1057,16 @@ html, body {
 
 /* Décomposition des prix */
 [data-etb-theme="light"] .etb-chk-price-row {
-    color: #475569 !important;
+    color: var(--etb-text-secondary, #5d5d5d) !important;
 }
 
 [data-etb-theme="light"] .etb-chk-price-row strong {
-    color: #0f172a !important;
+    color: var(--etb-text-primary, #0d0d0d) !important;
 }
 
 [data-etb-theme="light"] .etb-chk-price-row.total-row {
-    border-top: 1px solid #e2e8f0 !important;
-    color: #0f172a !important;
+    border-top: 1px solid var(--etb-border-main, #e5e5e5) !important;
+    color: var(--etb-text-primary, #0d0d0d) !important;
 }
 
 [data-etb-theme="light"] .etb-chk-price-row.total-row strong {

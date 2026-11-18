@@ -150,44 +150,56 @@
 }
 
 /* ── THÈME CLAIR ÉLÉGANT (LIGHT MODE VIP) ── */
+/* Palette neutre : fonds blancs, surfaces gris très clairs, texte quasi noir.
+   L'accent or et les teintes spécifiques (badges, états) sont conservés.    */
 [data-etb-theme="light"] {
     --etb-bg-app: transparent;
     --etb-bg-card: #ffffff;
-    --etb-bg-card-hover: #f8fafc;
-    --etb-bg-input: #f1f5f96e;
-    --etb-bg-glass: rgba(255, 255, 255, 0.86);
-    --etb-bg-elevated: #f1f5f9;
-    
-    --etb-border-main: #e2e8f0;
-    --etb-border-input: #cbd5e1;
-    --etb-border-light: rgba(0, 0, 0, 0.08);
-    
-    --etb-text-primary: #0f172a; /* Texte noir ardoise */
-    --etb-text-secondary: #475569;
-    --etb-text-muted: #94a3b8;
-    
-    --etb-accent-gold: #fbac18; /* Ambre foncé : même famille or, contraste AA sur blanc */
-    --etb-accent-gold-hover: #92400e;
+    --etb-bg-card-hover: #f9f9f9;
+    --etb-bg-hover: #ececec;
+    --etb-bg-input: #ffffff;
+    --etb-bg-glass: rgba(255, 255, 255, 0.92);
+    --etb-bg-elevated: #f3f3f3;
+    --etb-bg-surface: #f9f9f9;
+
+    --etb-border-main: #e5e5e5;
+    --etb-border-input: #e5e5e5;
+    --etb-border-light: rgba(13, 13, 13, 0.07);
+
+    --etb-text-primary: #0d0d0d;
+    --etb-text-secondary: #5d5d5d;
+    --etb-text-muted: #8f8f8f;
+
+    --etb-accent-gold: #fbac18; /* Accent or conservé */
+    --etb-accent-gold-hover: #e39402;
     --etb-brand-ink: #b45309;
     --etb-brand-soft: rgba(251, 172, 24, 0.08); /* Teinte or allégée : texte actif ambre ≥ AA sur fond clair */
-    --etb-success: #15803d;
-    --etb-success-bg: rgba(21, 128, 61, 0.1);
-    --etb-warning: #b45309;
-    --etb-warning-bg: rgba(180, 83, 9, 0.1);
-    --etb-danger: #b91c1c;
-    --etb-danger-bg: rgba(185, 28, 28, 0.08);
-    --etb-danger-border: rgba(185, 28, 28, 0.3);
+
+    /* Boutons / liens */
+    --etb-btn-primary-bg: #0d0d0d;
+    --etb-btn-primary-text: #ffffff;
+    --etb-btn-secondary-bg: #f3f3f3;
+    --etb-btn-secondary-text: #0d0d0d;
+    --etb-link: #10a37f;
+
+    --etb-success: #16865d;
+    --etb-success-bg: rgba(22, 134, 93, 0.1);
+    --etb-warning: #d97706;
+    --etb-warning-bg: rgba(217, 119, 6, 0.1);
+    --etb-danger: #dc2626;
+    --etb-danger-bg: rgba(220, 38, 38, 0.08);
+    --etb-danger-border: rgba(220, 38, 38, 0.3);
     --etb-info: #1d4ed8;
     --etb-info-bg: rgba(29, 78, 216, 0.08);
-    --etb-widget-bg:#f1f5f9;
-    --etb-widget-border: rgba(15, 23, 42, 0.08);
-    --etb-widget-highlight: rgba(255, 255, 255, 0.75);
-    --etb-widget-shadow: 0 24px 60px rgba(15, 23, 42, 0.14), 0 2px 10px rgba(15, 23, 42, 0.06);
-    --etb-scroll-track: rgba(15, 23, 42, 0.04);
-    --etb-scroll-thumb: #cbd5e1;
+    --etb-widget-bg: #f9f9f9;
+    --etb-widget-border: #e5e5e5;
+    --etb-widget-highlight: rgba(255, 255, 255, 0.9);
+    --etb-widget-shadow: 0 24px 60px rgba(13, 13, 13, 0.12), 0 2px 10px rgba(13, 13, 13, 0.05);
+    --etb-scroll-track: rgba(13, 13, 13, 0.04);
+    --etb-scroll-thumb: #e5e5e5;
     --etb-scroll-thumb-hover: #fbac18;
-    
-    --etb-shadow-base: 0 10px 30px rgba(0, 0, 0, 0.06);
+
+    --etb-shadow-base: 0 10px 30px rgba(13, 13, 13, 0.06);
 }
 
 /* Application des tokens sur les éléments racines */

@@ -183,7 +183,7 @@
 
 [data-etb-theme="light"] #etb-pay-display-tip-line{
     font-weight: bold !important;
-    color: #6f6f6f !important ;
+    color: var(--etb-text-secondary, #5d5d5d) !important ;
 }
 
 [data-etb-theme="dark"] .baby-seat-list{
