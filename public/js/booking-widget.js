@@ -682,8 +682,8 @@
                 const activeH     = timePopup.querySelector('.etb-hour-opt.active')?.dataset.val || '09';
                 const activeM     = timePopup.querySelector('.etb-minute-opt.active')?.dataset.val || '00';
                 const activeAmpmEl  = timePopup.querySelector('.etb-ampm-btn.active');
-                const activeAmpm    = activeAmpmEl ? activeAmpmEl.dataset.val : 'AM';
-                timeInput.value   = `${activeH}:${activeM} ${activeAmpm}`;
+                const activeAmpm    = activeAmpmEl ? activeAmpmEl.dataset.val : '';
+                timeInput.value   = activeAmpm ? `${activeH}:${activeM} ${activeAmpm}` : `${activeH}:${activeM}`;
                 
                 // Réévaluation immédiate du bandeau rouge (< 24h) en direct
                 updateUrgentNoticeLive();
