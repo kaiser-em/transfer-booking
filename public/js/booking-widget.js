@@ -602,7 +602,8 @@
                 const isToday = (selectedDateStr === todayFormatted);
 
                 const currentHour24 = now.getHours();
-                const activeAmpm    = timePopup.querySelector('.etb-ampm-btn.active')?.dataset.val || 'AM';
+                const activeAmpmEl  = timePopup.querySelector('.etb-ampm-btn.active');
+                const activeAmpm    = activeAmpmEl ? activeAmpmEl.dataset.val : 'AM';
 
                 // 1. Bouton AM si on est déjà l'après-midi
                 const amBtn = timePopup.querySelector('.etb-ampm-btn[data-val="AM"]');
@@ -626,7 +627,8 @@
                 timePopup.querySelectorAll('.etb-hour-opt').forEach(opt => {
                     const hVal12 = parseInt(opt.dataset.val, 10) || 0;
                     let hVal24 = hVal12;
-                    const currentAmpm = timePopup.querySelector('.etb-ampm-btn.active')?.dataset.val || 'AM';
+                    const activeAmpmEl = timePopup.querySelector('.etb-ampm-btn.active');
+                    const currentAmpm  = activeAmpmEl ? activeAmpmEl.dataset.val : 'AM';
                     if (currentAmpm === 'PM' && hVal12 < 12) hVal24 += 12;
                     if (currentAmpm === 'AM' && hVal12 === 12) hVal24 = 0;
 
@@ -679,7 +681,8 @@
             const update12hTime = () => {
                 const activeH     = timePopup.querySelector('.etb-hour-opt.active')?.dataset.val || '09';
                 const activeM     = timePopup.querySelector('.etb-minute-opt.active')?.dataset.val || '00';
-                const activeAmpm  = timePopup.querySelector('.etb-ampm-btn.active')?.dataset.val || 'AM';
+                const activeAmpmEl  = timePopup.querySelector('.etb-ampm-btn.active');
+                const activeAmpm    = activeAmpmEl ? activeAmpmEl.dataset.val : 'AM';
                 timeInput.value   = `${activeH}:${activeM} ${activeAmpm}`;
                 
                 // Réévaluation immédiate du bandeau rouge (< 24h) en direct
@@ -709,6 +712,13 @@
                     e.stopPropagation();
                     hourOpts.forEach(o => o.classList.remove('active'));
                     this.classList.add('active');
+
+                    // Si aucun AM/PM n'est sélectionné, AM par défaut
+                    if (!timePopup.querySelector('.etb-ampm-btn.active')) {
+                        const amBtn = timePopup.querySelector('.etb-ampm-btn[data-val="AM"]');
+                        if (amBtn) amBtn.classList.add('active');
+                    }
+
                     update12hTime();
                 });
                 opt.addEventListener('keydown', function (e) {

@@ -140,12 +140,12 @@ $now_time = '';
             <span class="etb-quick-label"><?php echo esc_html( ETB_I18n::t( 'Pickup time' ) ); ?></span>
             <input type="text" name="etb_quick_time" id="etb-quick-time" value="" placeholder="-- : --" readonly style="cursor: pointer;">
             
-            <!-- Menu déroulant 12h complet avec capsule AM/PM et deux colonnes distinctes -->
+            <!-- Menu déroulant 12h complet avec AM/PM en haut et deux colonnes distinctes -->
             <div class="etb-quick-time-picker-popup" id="etb-quick-time-popup" style="display: none;">
-                <!-- Capsule AM / PM -->
+                <!-- Sélecteur AM / PM en haut (sans icône, sans détail, aucun sélectionné par défaut) -->
                 <div class="etb-quick-ampm-capsule">
-                    <button type="button" class="etb-ampm-btn active" data-val="AM">AM</button>
-                    <button type="button" class="etb-ampm-btn " data-val="PM">PM</button>
+                    <button type="button" class="etb-ampm-btn" data-val="AM">AM</button>
+                    <button type="button" class="etb-ampm-btn" data-val="PM">PM</button>
                 </div>
 
                 <div class="etb-time-columns-row">

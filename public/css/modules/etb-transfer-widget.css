@@ -1494,76 +1494,99 @@
     height: 16px !important;
 }
 
-/* Sélecteur d'heures et minutes 12H AM/PM (Style Eden Cab) */
+/* Sélecteur d'heures et minutes 12H AM/PM — Design raffiné Light Mode */
 .etb-quick-time-picker-popup {
     position: absolute !important;
     top: 100% !important;
     left: 0 !important;
-    width: 175px !important;
-    background: var(--etb-bg-card, #0f1420) !important;
-    border: 1.5px solid var(--etb-border-main, #28334b) !important;
-    border-radius: 12px !important;
-    box-shadow: var(--etb-shadow-base, 0 20px 40px rgba(0, 0, 0, 0.7)) !important;
+    width: 210px !important;
+    background: var(--etb-bg-card, #ffffff) !important;
+    border: 1px solid var(--etb-border-main, #e5e5e5) !important;
+    border-radius: 14px !important;
+    box-shadow: var(--etb-shadow-base, 0 20px 40px rgba(13, 13, 13, 0.12)) !important;
     display: none !important;
     flex-direction: column !important;
-    padding: 10px !important;
+    padding: 12px !important;
     z-index: 99999 !important;
-    margin-top: 10px !important;
+    margin-top: 8px !important;
 }
 
 .etb-time-head {
     font-size: 10px !important;
-    font-weight: 700 !important;
-    color: var(--etb-text-secondary, #94a3b8) !important;
+    font-weight: 800 !important;
+    color: var(--etb-text-secondary, #5d5d5d) !important;
     text-transform: uppercase !important;
+    letter-spacing: 0.08em !important;
     text-align: center !important;
     padding-bottom: 4px !important;
-    border-bottom: 1px solid var(--etb-border-light, rgba(255, 255, 255, 0.1)) !important;
-    margin-bottom: 4px !important;
+    border-bottom: 1px solid var(--etb-border-main, #e5e5e5) !important;
+    margin-bottom: 6px !important;
 }
 
 .etb-time-opt {
-    padding: 6px 0 !important;
+    padding: 7px 0 !important;
     text-align: center !important;
     font-size: 13px !important;
     font-weight: 600 !important;
-    color: var(--etb-text-primary, #e2e8f0) !important;
-    border-radius: 6px !important;
+    color: var(--etb-text-primary, #0d0d0d) !important;
+    border-radius: 8px !important;
     cursor: pointer !important;
     transition: all 0.15s ease !important;
 }
+
+/* Aucun survol agressif : juste un léger fond */
+.etb-time-opt:hover {
+    background: var(--etb-bg-hover, #ececec) !important;
+    color: var(--etb-text-primary, #0d0d0d) !important;
+}
+
+.etb-time-opt.active {
+    background: var(--etb-accent-gold, #fbac18) !important;
+    color: #0d0d0d !important;
+    font-weight: 800 !important;
+}
+
 .etb-quick-time-picker-popup.is-open {
     display: flex !important;
 }
 
-/* Capsule AM / PM supérieure */
+/* Sélecteur AM / PM en haut — sans icône, sans détail, épuré */
 .etb-quick-ampm-capsule {
     display: flex !important;
-    background: rgba(255, 255, 255, 0.08) !important;
-    border-radius: 6px !important;
-    padding: 2px !important;
-    margin-bottom: 8px !important;
-    gap: 3px !important;
+    background: var(--etb-bg-surface, #f9f9f9) !important;
+    border: 1px solid var(--etb-border-main, #e5e5e5) !important;
+    border-radius: 10px !important;
+    padding: 3px !important;
+    margin-bottom: 10px !important;
+    gap: 4px !important;
 }
 
 .etb-ampm-btn {
     flex: 1 !important;
     background: transparent !important;
     border: none !important;
-    color: var(--etb-text-secondary, #94a3b8) !important;
-    padding: 5px 0 !important;
+    color: var(--etb-text-muted, #8f8f8f) !important;
+    padding: 7px 0 !important;
     font-size: 11px !important;
-    font-weight: 700 !important;
-    border-radius: 4px !important;
+    font-weight: 800 !important;
+    letter-spacing: 0.06em !important;
+    border-radius: 8px !important;
     cursor: pointer !important;
     transition: all 0.2s ease !important;
     text-align: center !important;
+    text-transform: uppercase !important;
 }
 
+.etb-ampm-btn:hover {
+    background: var(--etb-bg-hover, #ececec) !important;
+    color: var(--etb-text-primary, #0d0d0d) !important;
+}
+
+/* État sélectionné : accent or avec texte noir pour contraste */
 .etb-ampm-btn.active {
-    background: var(--etb-qw-accent) !important;
-    color: black !important;
-   /* box-shadow: 0 2px 6px rgba(0, 114, 229, 0.4) !important;*/
+    background: var(--etb-accent-gold, #fbac18) !important;
+    color: #0d0d0d !important;
+    box-shadow: 0 2px 6px rgba(251, 172, 24, 0.25) !important;
 }
 
 .etb-time-columns-row {
@@ -1579,16 +1602,9 @@
 }
 
 .etb-time-scroll {
-    max-height: 160px !important;
+    max-height: 170px !important;
     overflow-y: auto !important;
     overscroll-behavior: contain !important;
-}
-
-
-.etb-time-opt:hover,
-.etb-time-opt.active {
-    background: var(--etb-qw-accent) !important;
-    color: #ffffff !important;
 }
 
 /* ==========================================================================
