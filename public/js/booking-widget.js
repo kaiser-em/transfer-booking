@@ -712,13 +712,6 @@
                     e.stopPropagation();
                     hourOpts.forEach(o => o.classList.remove('active'));
                     this.classList.add('active');
-
-                    // Si aucun AM/PM n'est sélectionné, AM par défaut
-                    if (!timePopup.querySelector('.etb-ampm-btn.active')) {
-                        const amBtn = timePopup.querySelector('.etb-ampm-btn[data-val="AM"]');
-                        if (amBtn) amBtn.classList.add('active');
-                    }
-
                     update12hTime();
                 });
                 opt.addEventListener('keydown', function (e) {
