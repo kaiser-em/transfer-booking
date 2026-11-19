@@ -689,12 +689,34 @@
                 updateUrgentNoticeLive();
             };
 
+            // Flash rouge temporaire (fond + contour) sur le bloc AM/PM quand l'alerte apparaît
+            let ampmFlashTimer = null;
+            const flashAmpmCapsule = () => {
+                const capsule = timePopup.querySelector('.etb-quick-ampm-capsule');
+                if (!capsule) return;
+                capsule.classList.remove('bg-red');
+                void capsule.offsetWidth; // force reflow pour rejouer le flash
+                capsule.classList.add('bg-red');
+                if (ampmFlashTimer) clearTimeout(ampmFlashTimer);
+                ampmFlashTimer = setTimeout(() => {
+                    capsule.classList.remove('bg-red');
+                    ampmFlashTimer = null;
+                }, 2000);
+            };
+
             // 1. Bascule AM / PM avec rafraîchissement immédiat des heures disponibles
             timePopup.querySelectorAll('.etb-ampm-btn').forEach(btn => {
                 btn.addEventListener('click', function (e) {
                     e.stopPropagation();
                     timePopup.querySelectorAll('.etb-ampm-btn').forEach(b => b.classList.remove('active'));
                     this.classList.add('active');
+
+                    // Masque l'alerte et le flash dès qu'AM ou PM est choisi
+                    const alertEl = timePopup.querySelector('.etb-time-alert');
+                    if (alertEl) alertEl.classList.remove('is-visible');
+                    const capsule = timePopup.querySelector('.etb-quick-ampm-capsule');
+                    if (capsule) capsule.classList.remove('bg-red');
+                    if (ampmFlashTimer) { clearTimeout(ampmFlashTimer); ampmFlashTimer = null; }
 
                     // Rafraîchissement immédiat de l'état des heures (AM vs PM)
                     if (typeof refreshPastHoursRestrictions === 'function') {
@@ -710,6 +732,13 @@
             hourOpts.forEach(opt => {
                 opt.addEventListener('click', function (e) {
                     e.stopPropagation();
+                    const ampmActive = timePopup.querySelector('.etb-ampm-btn.active');
+                    if (!ampmActive) {
+                        const alertEl = timePopup.querySelector('.etb-time-alert');
+                        if (alertEl) alertEl.classList.add('is-visible');
+                        flashAmpmCapsule();
+                        return;
+                    }
                     hourOpts.forEach(o => o.classList.remove('active'));
                     this.classList.add('active');
                     update12hTime();
@@ -733,6 +762,13 @@
             minuteOpts.forEach(opt => {
                 opt.addEventListener('click', function (e) {
                     e.stopPropagation();
+                    const ampmActive = timePopup.querySelector('.etb-ampm-btn.active');
+                    if (!ampmActive) {
+                        const alertEl = timePopup.querySelector('.etb-time-alert');
+                        if (alertEl) alertEl.classList.add('is-visible');
+                        flashAmpmCapsule();
+                        return;
+                    }
                     minuteOpts.forEach(o => o.classList.remove('active'));
                     this.classList.add('active');
                     update12hTime();

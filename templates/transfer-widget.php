@@ -147,6 +147,7 @@ $now_time = '';
                     <button type="button" class="etb-ampm-btn" data-val="AM">AM</button>
                     <button type="button" class="etb-ampm-btn" data-val="PM">PM</button>
                 </div>
+                <div class="etb-time-alert">Choose AM or PM to set the time</div>
 
                 <div class="etb-time-columns-row">
                     <div class="etb-time-col etb-time-hours">
