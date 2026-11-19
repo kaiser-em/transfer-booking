@@ -151,7 +151,9 @@ if ( $has_valid_booking && ! $is_tampered ) {
     if ( ! empty( $vehicles ) && is_array( $vehicles ) ) {
         foreach ( $vehicles as $v_id => $q ) {
             if ( $q > 0 ) {
-                $vehicle_title = get_the_title( $v_id );
+                $vehicle_title = class_exists( 'ETB_Vehicle_Labels' )
+                    ? ETB_Vehicle_Labels::name( get_the_title( $v_id ) )
+                    : get_the_title( $v_id );
                 $vehicle_img   = get_the_post_thumbnail_url( $v_id, 'full' ) ?: '';
                 break;
             }

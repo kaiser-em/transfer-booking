@@ -233,6 +233,9 @@ $now_time = '';
                 $hover_img     = get_post_meta( $v->ID, '_etb_hover_image', true );
                 $transfer_quote_only = get_post_meta( $v->ID, '_etb_transfer_quote_only', true );
                 $upon_request        = get_post_meta( $v->ID, '_etb_upon_request', true );
+                $vehicle_label       = class_exists( 'ETB_Vehicle_Labels' )
+                    ? ETB_Vehicle_Labels::get( $v->post_title )
+                    : array( 'name' => $v->post_title, 'type' => '' );
             ?>
                 <div class="etb-quick-car-item" 
                      id="limo-car-<?php echo esc_attr( $limo_class_id ); ?>" 
@@ -276,7 +279,10 @@ $now_time = '';
     
                     <!-- 2. CORPS DE LA CARTE -->
                     <div class="etb-quick-card-body">
-                        <h4 class="etb-quick-car-title"><?php echo esc_html( $v->post_title ); ?></h4>
+                        <h4 class="etb-quick-car-title"><?php echo esc_html( $vehicle_label['name'] ); ?></h4>
+                        <?php if ( ! empty( $vehicle_label['type'] ) ) : ?>
+                            <span class="etb-quick-car-type"><?php echo esc_html( $vehicle_label['type'] ); ?></span>
+                        <?php endif; ?>
                         
                         <!-- Ligne Capacités avec nouveaux SVGs dorés et majuscules -->
                         <div class="etb-quick-specs">

@@ -171,6 +171,7 @@ class Elite_Transfer_Booking {
         
         require_once ETB_PATH . 'includes/class-etb-pricing-engine.php';
         require_once ETB_PATH . 'includes/class-etb-meta-manager.php';
+        require_once ETB_PATH . 'includes/class-etb-vehicle-labels.php';
         require_once ETB_PATH . 'includes/class-etb-ajax.php';
         require_once ETB_PATH . 'includes/class-etb-logger.php';
         require_once ETB_PATH . 'includes/class-etb-shortcode.php';

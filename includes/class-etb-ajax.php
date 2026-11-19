@@ -620,7 +620,9 @@ class ETB_Ajax {
         }
 
 
-        $vehicle_title = get_the_title( $vehicle_id );
+        $vehicle_title = class_exists( 'ETB_Vehicle_Labels' )
+            ? ETB_Vehicle_Labels::name( get_the_title( $vehicle_id ) )
+            : get_the_title( $vehicle_id );
         $max_pax       = absint( get_post_meta( $vehicle_id, '_etb_max_pax', true ) ?: 1 );
         $max_bag       = absint( get_post_meta( $vehicle_id, '_etb_max_baggage', true ) ?: 0 );
 
@@ -1660,7 +1662,9 @@ class ETB_Ajax {
                     $total_cart_price += $t_locked_price;
                 }
 
-                $v_title = get_the_title( $t_vehicle_id );
+                $v_title = class_exists( 'ETB_Vehicle_Labels' )
+                    ? ETB_Vehicle_Labels::name( get_the_title( $t_vehicle_id ) )
+                    : get_the_title( $t_vehicle_id );
                 $v_img   = get_the_post_thumbnail_url( $t_vehicle_id, 'full' ) ?: '';
                 $v_pax   = absint( get_post_meta( $t_vehicle_id, '_etb_max_pax', true ) ?: 1 );
                 $v_bag   = absint( get_post_meta( $t_vehicle_id, '_etb_max_baggage', true ) ?: 0 );
@@ -1729,7 +1733,9 @@ class ETB_Ajax {
                 }
             }
 
-            $vehicle_name = get_the_title( $vehicle_id );
+            $vehicle_name = class_exists( 'ETB_Vehicle_Labels' )
+                ? ETB_Vehicle_Labels::name( get_the_title( $vehicle_id ) )
+                : get_the_title( $vehicle_id );
             $vehicle_img  = get_the_post_thumbnail_url( $vehicle_id, 'full' ) ?: '';
             $max_pax      = absint( get_post_meta( $vehicle_id, '_etb_max_pax', true ) ?: 1 );
             $max_bag      = absint( get_post_meta( $vehicle_id, '_etb_max_baggage', true ) ?: 0 );
