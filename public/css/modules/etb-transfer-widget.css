@@ -1673,9 +1673,9 @@
     max-height: 180px !important;
     overflow-y: auto !important;
     overscroll-behavior: contain !important;
-    /* Scrollbar discrète style Apple */
+    /* Scrollbar discrète style Apple, alignée sur le thème */
     scrollbar-width: thin !important;
-    scrollbar-color: rgba(13, 13, 13, 0.15) transparent !important;
+    scrollbar-color: var(--etb-scroll-thumb, rgba(13, 13, 13, 0.15)) transparent !important;
 }
 
 .etb-time-scroll::-webkit-scrollbar {
@@ -1685,11 +1685,11 @@
     background: transparent !important;
 }
 .etb-time-scroll::-webkit-scrollbar-thumb {
-    background: rgba(13, 13, 13, 0.15) !important;
+    background: var(--etb-scroll-thumb, rgba(13, 13, 13, 0.15)) !important;
     border-radius: 3px !important;
 }
 .etb-time-scroll::-webkit-scrollbar-thumb:hover {
-    background: rgba(13, 13, 13, 0.25) !important;
+    background: var(--etb-scroll-thumb-hover, rgba(13, 13, 13, 0.25)) !important;
 }
 
 /* ==========================================================================
