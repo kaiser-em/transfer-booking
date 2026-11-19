@@ -521,6 +521,8 @@
 
 .etb-quick-car-item.selected {
     border-color: var(--etb-accent-gold, #fbac18) !important;
+    /* Épaissit le contour orange de 1px sans décaler la carte (pas de reflow) */
+    box-shadow: 0 0 0 1px var(--etb-accent-gold, #fbac18) !important;
 }
 
 /* 2. Zone En-tête Héroïque : Plein écran sans bordure + Dégradé fondu */
